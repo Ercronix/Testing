@@ -1,0 +1,48 @@
+{
+  "name": "helio-extension-template",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "rollup --config rollup.config.mjs",
+    "dev": "rollup --config rollup.config.mjs --watch",
+    "check": "tsc --noEmit",
+    "clean": "rm -rf lib",
+    "test": "vitest",
+    "lint": "eslint 'src//**/*.ts?(x)'",
+    "build-storybook": "storybook build",
+    "storybook": "storybook dev --port=9001 --ci"
+  },
+  "dependencies": {
+    "@hmiproject/helio-sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@rollup/plugin-commonjs": "^29.0.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-replace": "^6.0.3",
+    "@storybook/addon-docs": "^10.1.8",
+    "@storybook/addon-vitest": "^10.1.8",
+    "@storybook/react-vite": "^10.1.8",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitest/browser-playwright": "^4.0.15",
+    "@vitest/coverage-v8": "^4.0.15",
+    "eslint": "^9.39.2",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-storybook": "^10.1.8",
+    "globals": "^16.5.0",
+    "playwright": "^1.57.0",
+    "prettier": "^3.7.4",
+    "rollup": "4.53.3",
+    "rollup-plugin-external-globals": "^0.13.0",
+    "rollup-plugin-typescript2": "^0.36.0",
+    "storybook": "^10.1.5",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.49.0",
+    "vitest": "^4.0.15"
+  },
+  "volta": {
+    "node": "22.14.0"
+  }
+}
