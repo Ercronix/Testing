@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
+    "generate:theme": "node scripts/extract-openbridge-theme.mjs",
     "build": "rollup --config rollup.config.mjs",
     "dev": "rollup --config rollup.config.mjs --watch",
     "check": "tsc --noEmit",
@@ -13,7 +14,9 @@
     "storybook": "storybook dev --port=9001 --ci"
   },
   "dependencies": {
-    "@hmiproject/helio-sdk": "^1.0.0"
+    "@hmiproject/helio-sdk": "^1.0.0",
+    "@oicl/openbridge-webcomponents": "^2.0.0",
+    "@oicl/openbridge-webcomponents-react": "^2.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
@@ -33,6 +36,7 @@
     "eslint-plugin-storybook": "^10.1.8",
     "globals": "^16.5.0",
     "playwright": "^1.57.0",
+    "postcss": "^8.5.28",
     "prettier": "^3.7.4",
     "rollup": "4.53.3",
     "rollup-plugin-external-globals": "^0.13.0",

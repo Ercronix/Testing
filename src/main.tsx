@@ -1,43 +1,19 @@
 import { createLibraryExtension } from '@hmiproject/helio-sdk';
-
-/**
- * First Steps:
- *
- * 1. Set the package's name in `package.json`.
- * 2. Define your namespace in `src/namespace.ts.
- * 3. Change the `name`, `description` and `author` fields of `createLibraryExtension`.
- * 4. Try building with `npm run build`.
- */
+import { compassElement } from './compass/compassElement';
+import { angleConversionProperty } from './dynamicProperties/angleConversion';
+import { cardinalDirectionProperty } from './dynamicProperties/cardinalDirection';
 
 export default createLibraryExtension({
-  name: 'My HELIO Extension',
-  description: 'Controls to extend the HELIO Library',
+  name: 'OpenBridge Instruments',
+  description: 'OpenBridge design system navigation instruments for HELIO',
   version: '1.0.0',
-  author: 'ACME Inc.',
+  author: 'mornhinweg',
 
   minimumRequiredHelioVersion: '25.4.0',
 
-  actions: [
-    // Examples:
-    //
-    // basicAction,
-    // configurableAction,
-  ],
+  actions: [],
 
-  dynamicProperties: [
-    // Examples:
-    //
-    // basicDynamicProperty,
-  ],
+  dynamicProperties: [angleConversionProperty, cardinalDirectionProperty],
 
-  elements: [
-    // Examples:
-    //
-    // pageElement,
-    // widgetElement,
-    // controlElement,
-    // elementWithAction,
-    // elementWithMigration,
-    // elementWithCss,
-  ],
+  elements: [compassElement],
 });
