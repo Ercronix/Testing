@@ -20,7 +20,7 @@ avoid the pitfalls that were found while building it.
 6. [Step 3 – The HELIO element (`CompassElement.tsx`)](#6-step-3--the-helio-element-compasselementtsx)
 7. [Step 4 – Companion dynamic properties](#7-step-4--companion-dynamic-properties)
 8. [Step 5 – Register everything in `main.tsx`](#8-step-5--register-everything-in-maintsx)
-9. [Step 6 – Tests](#9-step-6--tests)
+9. [Step 6 – Tests and Storybook](#9-step-6--tests-and-storybook)
 10. [Property reference](#10-property-reference)
 11. [`<obc-compass>` API cheat sheet](#11-obc-compass-api-cheat-sheet)
 12. [Pitfalls and gotchas](#12-pitfalls-and-gotchas)
@@ -93,19 +93,22 @@ This works because the HELIO SDK package in `node_modules` is only a **mock**
 ```
 src/main.tsx                                  extension registration + CSS import
 src/components/Compass.tsx                    presentational component + AutoSizer
+src/components/Compass.stories.tsx            Storybook stories
 src/elements/CompassElement.tsx               HELIO element + value mapping helpers
 src/dynamicProperties/angleMath.ts            pure angle math (conversion, wrap, cardinal names)
 src/dynamicProperties/angleConversion.tsx     "Angle Conversion" DP
 src/dynamicProperties/cardinalDirection.tsx   "Cardinal Direction" DP
 src/tests/compass.test.ts                     unit tests
 rollup.config.mjs                             bundling incl. CSS injection
+.storybook/preview.tsx                        loads openbridge.css for Storybook
 ```
 
 ---
 
 ## 3. Dependencies and project setup
 
-Start from the HELIO extension template (rollup + TypeScript + Vitest).
+Start from the HELIO extension template (rollup + TypeScript + Storybook +
+Vitest).
 
 ```bash
 npm i @oicl/openbridge-webcomponents@^2 @oicl/openbridge-webcomponents-react@^2
@@ -511,7 +514,7 @@ Build: `npm run build` → upload `lib/<name>-<version>.js` to HELIO.
 
 ---
 
-## 9. Step 6 – Tests
+## 9. Step 6 – Tests and Storybook
 
 **Unit tests** (`src/tests/compass.test.ts`, Vitest) cover the value mapping
 helpers exported from `CompassElement.tsx` (coercion, direction and priority
@@ -519,8 +522,25 @@ parsing, instrument state, advice building, center readouts) and the angle
 math from `angleMath.ts` (wrap, cardinal directions, conversion round-trips).
 Run `npx vitest run`.
 
-What can only be verified inside HELIO: rendering and auto-sizing, live DP
-subscriptions, write-back via Angle Conversion, the click action, and IDE prop
+**Storybook** (`src/components/Compass.stories.tsx`, title `OpenBridge/Compass`)
+renders the `Compass` component directly (not the HELIO element, since the SDK
+is a mock). `.storybook/preview.tsx` imports `openbridge.css` the same way
+`main.tsx` does; Vite handles the CSS import natively.
+
+The container size comes from `parameters.size` (default 420×420, dashed
+outline), so each story can show how the AutoSizer behaves:
+
+| Story | Shows |
+|---|---|
+| `Default` | north-up, heading, COG, ROT dots, setpoint |
+| `FullyLoaded` | heading-up, advice + caution zones, wind, current, enhanced priority, ROT bar, HDG/COG/ROT readouts |
+| `WideContainer` | 640×240 box – compass shrinks to 240 px and centres horizontally |
+| `TallContainer` | 200×480 box – compass shrinks to 200 px and centres vertically |
+| `Loading` | `InstrumentState.loading` |
+
+Run `npm run storybook` → <http://localhost:9001>.
+
+What can only be verified inside HELIO: live DP subscriptions, write-back via Angle Conversion, the click action, and IDE prop
 groups.
 
 ---
@@ -684,10 +704,11 @@ The React wrapper declares **no events**, so the compass is display-only
 - [ ] Install `@oicl/openbridge-webcomponents`, `@oicl/openbridge-webcomponents-react`, dev `rollup-plugin-import-css`
 - [ ] Rollup: React/SDK external, `process.env.NODE_ENV` replaced, `css({ inject: true })`
 - [ ] Import `@oicl/openbridge-webcomponents/dist/openbridge.css` in `main.tsx`
-- [ ] Copy `src/components/Compass.tsx`
+- [ ] Copy `src/components/Compass.tsx` (and `Compass.stories.tsx`; import `openbridge.css` in `.storybook/preview.tsx`)
 - [ ] Copy `src/elements/CompassElement.tsx`; adjust the `namespace` import
 - [ ] Copy `src/dynamicProperties/*` (`angleMath.ts` is required by the element)
 - [ ] Register element and DPs in `main.tsx`
 - [ ] Set package `name`, namespace, extension `name`/`author`
 - [ ] `npx tsc --noEmit && npm run lint && npx vitest run && npm run build`
+- [ ] Check the Storybook `OpenBridge/Compass` stories, incl. wide/tall containers
 - [ ] Upload the bundle to HELIO and test: live values, auto-sizing, loading state, click action

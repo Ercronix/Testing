@@ -1,4 +1,5 @@
 import type { Preview } from '@storybook/react-vite';
+import '@oicl/openbridge-webcomponents/dist/openbridge.css';
 
 const preview: Preview = {
   parameters: {
