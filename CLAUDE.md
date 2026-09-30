@@ -33,6 +33,8 @@ npx vitest run                # all unit tests once (`npm run test` = watch mode
 npx vitest run src/tests/instruments.test.ts -t "buildLinearAdvices"   # single test
 npx prettier --write src      # formatting (single quotes, trailing commas, width 100)
 npm run storybook             # http://localhost:9001
+npm run create:element -- gauge-radial --name "Radial Gauge"   # generate a new instrument
+npm run create:element -- --list                               # all OpenBridge components
 ```
 
 CI (`.github/workflows`) runs build, lint and test.
@@ -54,6 +56,25 @@ Each instrument is split into **exactly two files**:
 
 Plus a `<Name>.stories.tsx` next to the component, a doc in `docs/`, and
 registration in `src/main.tsx`.
+
+**New instruments are generated, not hand-written:**
+`scripts/create-element.mjs` reads the OpenBridge `custom-elements.json`
+manifest (plus enum/interface shapes from the `.d.ts` files) and writes all of
+the above, then runs prettier. Options: `--primary a,b` (required main values
+that drive the `loading` state), `--shape square|fill`, `--icon`, `--force`,
+`--dry-run`. Mapping: number/boolean/string → optional DynamicProperty (manifest
+default used as fallback and shown in the label), string enums → `props.Enum`,
+enum arrays → comma-separated String DP, `*Advice[]` → advice/caution zone
+props, `state` → isOff/isLoading, `priority` → "Enhanced priority". Other types
+are listed as "Not generated" in the element's header comment and doc. Known
+component quirks go in `FALLBACK_OVERRIDES`. After changing the generator,
+regenerate every component in a throwaway copy of the repo (copy `src`,
+`scripts`, configs; symlink `node_modules`; delete the tests; loop over `--list`
+with `--force`) and run tsc, eslint and the build there.
+Generated components spread `definedProps(props)`: the React wrappers assign
+every passed prop, so `undefined` would overwrite OpenBridge's own defaults.
+`Compass` and `AzimuthThruster` are hand-written and must not be regenerated
+with `--force`.
 
 Shared code:
 

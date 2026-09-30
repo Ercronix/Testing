@@ -7,10 +7,13 @@ import {
 import {
   buildAngleAdvices,
   buildLinearAdvices,
+  definedProps,
   deriveInstrumentState,
   normalizeKey,
   optionalBoolean,
   optionalNumber,
+  optionalString,
+  parseEnumList,
   toBoolean,
   toFiniteNumber,
 } from '../utils/valueMapping';
@@ -47,6 +50,21 @@ describe('value coercion', () => {
     expect(optionalNumber({}, { value: 5, canRead: false })).toBeUndefined();
     expect(optionalNumber({}, { value: '5', canRead: true })).toBe(5);
     expect(optionalBoolean({}, { value: 'on', canRead: undefined })).toBe(true);
+  });
+
+  test('optionalString', () => {
+    expect(optionalString({}, { value: 'HDG', canRead: true })).toBe('HDG');
+    expect(optionalString({}, { value: 12, canRead: true })).toBe('12');
+    expect(optionalString(undefined, { value: 'x', canRead: true })).toBeUndefined();
+  });
+
+  test('parseEnumList', () => {
+    expect(parseEnumList('HDG, rot;foo hdg', ['hdg', 'cog', 'rot'])).toEqual(['hdg', 'rot']);
+    expect(parseEnumList(1, ['hdg'])).toEqual([]);
+  });
+
+  test('definedProps drops undefined so component defaults apply', () => {
+    expect(definedProps({ a: 1, b: undefined, c: false })).toEqual({ a: 1, c: false });
   });
 
   test('normalizeAngle', () => {

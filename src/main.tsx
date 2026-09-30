@@ -2,6 +2,8 @@ import { createLibraryExtension } from '@hmiproject/helio-sdk';
 import '@oicl/openbridge-webcomponents/dist/openbridge.css';
 import { azimuthThrusterElement } from './elements/AzimuthThrusterElement';
 import { compassElement } from './elements/CompassElement';
+import { radialGaugeElement } from './elements/RadialGaugeElement';
+import { flatCompassElement } from './elements/FlatCompassElement';
 import { angleConversionProperty } from './dynamicProperties/angleConversion';
 import { cardinalDirectionProperty } from './dynamicProperties/cardinalDirection';
 
@@ -17,5 +19,5 @@ export default createLibraryExtension({
 
   dynamicProperties: [angleConversionProperty, cardinalDirectionProperty],
 
-  elements: [compassElement, azimuthThrusterElement],
+  elements: [compassElement, azimuthThrusterElement, radialGaugeElement, flatCompassElement],
 });

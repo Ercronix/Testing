@@ -105,3 +105,35 @@ export function buildLinearAdvices(zones: AdviceZoneInput[]): LinearAdvice[] {
     hinted: zone.hinted ?? false,
   }));
 }
+
+/** String counterpart of {@link optionalNumber}; numbers are converted to strings. */
+export function optionalString(ref: unknown, dp: ReadableValue): string | undefined {
+  if (ref === undefined || dp.canRead === false) return undefined;
+  if (typeof dp.value === 'string') return dp.value;
+  if (typeof dp.value === 'number' && Number.isFinite(dp.value)) return String(dp.value);
+  return undefined;
+}
+
+/**
+ * Parses a comma/space separated list like `"hdg, cog"` into the allowed
+ * values (case-insensitive, deduplicated, unknown entries dropped).
+ */
+export function parseEnumList<T extends string>(value: unknown, allowed: readonly T[]): T[] {
+  if (typeof value !== 'string') return [];
+  const parts = value
+    .split(/[\s,;|]+/)
+    .map((part) => allowed.find((option) => option.toLowerCase() === part.trim().toLowerCase()))
+    .filter((part): part is T => part !== undefined);
+  return [...new Set(parts)];
+}
+
+/**
+ * Drops `undefined` entries. The OpenBridge React wrappers assign every passed
+ * prop to the element, so passing `undefined` would override the component's
+ * own default – leaving the prop out keeps it.
+ */
+export function definedProps<T extends object>(props: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(props).filter(([, value]) => value !== undefined),
+  ) as Partial<T>;
+}

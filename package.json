@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
+    "create:element": "node scripts/create-element.mjs",
     "build": "rollup --config rollup.config.mjs",
     "dev": "rollup --config rollup.config.mjs --watch",
     "check": "tsc --noEmit",
