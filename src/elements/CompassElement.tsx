@@ -14,10 +14,7 @@ import {
   CompassReadoutSource,
   type CompassCenterReadout,
 } from '@oicl/openbridge-webcomponents/dist/navigation-instruments/compass/compass.js';
-import {
-  AdviceType,
-  type AngleAdvice,
-} from '@oicl/openbridge-webcomponents/dist/navigation-instruments/watch/advice.js';
+import { AdviceType } from '@oicl/openbridge-webcomponents/dist/navigation-instruments/watch/advice.js';
 import { Fragment } from 'react';
 import { namespace } from '../namespace';
 import { normalizeAngle } from '../dynamicProperties/angleMath';
@@ -26,43 +23,20 @@ import {
   Compass,
   CompassDirection,
   HdgArrowStyle,
-  InstrumentState,
   Priority,
   RotPosition,
   RotType,
   VesselImage,
 } from '../components/Compass';
-
-// ── Value mapping ──────────────────────────────────────────────────────
-// Helpers that translate loosely typed HELIO values (dynamic properties can
-// deliver anything a PLC/OPC UA variable produces) into the strongly typed
-// inputs of `<obc-compass>`.
-
-/** Returns a finite number, or `undefined` for anything else (incl. numeric strings that are empty). */
-export function toFiniteNumber(value: unknown): number | undefined {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }
-  return undefined;
-}
-
-/** Interprets booleans, numbers (0 = false) and strings like "true"/"on"/"1". */
-export function toBoolean(value: unknown): boolean | undefined {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return Number.isFinite(value) ? value !== 0 : undefined;
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase();
-    if (['true', '1', 'on', 'yes'].includes(normalized)) return true;
-    if (['false', '0', 'off', 'no'].includes(normalized)) return false;
-  }
-  return undefined;
-}
-
-function normalizeKey(value: string): string {
-  return value.replace(/[\s_-]/g, '').toLowerCase();
-}
+import {
+  buildAngleAdvices,
+  deriveInstrumentState,
+  normalizeKey,
+  optionalBoolean,
+  optionalNumber,
+  toBoolean,
+  toFiniteNumber,
+} from '../utils/valueMapping';
 
 /**
  * Accepts `northUp` / `headingUp` / `courseUp` (case, spaces, dashes ignored),
@@ -71,9 +45,7 @@ function normalizeKey(value: string): string {
  */
 export function parseDirection(value: unknown): CompassDirection | undefined {
   if (typeof value === 'number') {
-    return [CompassDirection.NorthUp, CompassDirection.HeadingUp, CompassDirection.CourseUp][
-      value
-    ];
+    return [CompassDirection.NorthUp, CompassDirection.HeadingUp, CompassDirection.CourseUp][value];
   }
   if (typeof value !== 'string') return undefined;
 
@@ -110,49 +82,6 @@ export function parsePriorityElements(value: unknown): CompassPriorityElement[] 
     .map((part) => part.trim().toLowerCase())
     .filter((part) => allowed.includes(part)) as CompassPriorityElement[];
   return [...new Set(elements)];
-}
-
-export type InstrumentStateInput = {
-  /** Explicit "instrument off" signal, e.g. sensor powered down. */
-  isOff: boolean | undefined;
-  /** Explicit "loading" signal. */
-  isLoading: boolean | undefined;
-  /** Whether the heading value is currently readable/available. */
-  headingAvailable: boolean;
-};
-
-/**
- * Derives the instrument state. Explicit signals win; otherwise the compass
- * shows `loading` while the heading has no value yet (e.g. connection pending).
- */
-export function deriveInstrumentState(input: InstrumentStateInput): InstrumentState {
-  if (input.isOff) return InstrumentState.off;
-  if (input.isLoading) return InstrumentState.loading;
-  if (!input.headingAvailable) return InstrumentState.loading;
-  return InstrumentState.active;
-}
-
-export type AdviceZoneInput = {
-  type: AdviceType;
-  enabled: boolean | undefined;
-  min: number | undefined;
-  max: number | undefined;
-  hinted: boolean | undefined;
-};
-
-/** Builds the heading advice arcs; incomplete or disabled zones are skipped. */
-export function buildAdvices(zones: AdviceZoneInput[]): AngleAdvice[] {
-  return zones.flatMap((zone) => {
-    if (zone.enabled === false || zone.min === undefined || zone.max === undefined) return [];
-    return [
-      {
-        type: zone.type,
-        minAngle: normalizeAngle(zone.min),
-        maxAngle: normalizeAngle(zone.max),
-        hinted: zone.hinted ?? false,
-      },
-    ];
-  });
 }
 
 export const CENTER_DISPLAY_OPTIONS = [
@@ -193,9 +122,10 @@ export function buildCenterReadouts(
 // ── Element ────────────────────────────────────────────────────────────
 
 // Only top-down vessel silhouettes make sense in the middle of a compass.
-const TOP_VESSEL_IMAGES = Object.values(VesselImage).filter((image) =>
-  image.endsWith('-top'),
-) as [VesselImage, ...VesselImage[]];
+const TOP_VESSEL_IMAGES = Object.values(VesselImage).filter((image) => image.endsWith('-top')) as [
+  VesselImage,
+  ...VesselImage[],
+];
 
 const HDG_ARROW_STYLES = Object.values(HdgArrowStyle) as [HdgArrowStyle, ...HdgArrowStyle[]];
 const COG_ARROW_STYLES = Object.values(CogArrowStyle) as [CogArrowStyle, ...CogArrowStyle[]];
@@ -574,18 +504,6 @@ export const compassElement = createElement(namespace, {
       rotMaxValue,
     ];
 
-    // Optional props that are not configured must not contribute values.
-    const optionalNumber = (
-      ref: unknown,
-      dp: { value: unknown; canRead: boolean | undefined },
-    ): number | undefined =>
-      ref === undefined || dp.canRead === false ? undefined : toFiniteNumber(dp.value);
-    const optionalBoolean = (
-      ref: unknown,
-      dp: { value: unknown; canRead: boolean | undefined },
-    ): boolean | undefined =>
-      ref === undefined || dp.canRead === false ? undefined : toBoolean(dp.value);
-
     const offset = optionalNumber(p.angleOffset, angleOffset) ?? 0;
     const withOffset = (angle: number | undefined) =>
       angle === undefined ? undefined : normalizeAngle(angle + offset);
@@ -609,7 +527,7 @@ export const compassElement = createElement(namespace, {
           state={deriveInstrumentState({
             isOff: optionalBoolean(p.isOff, isOff),
             isLoading: optionalBoolean(p.isLoading, isLoading),
-            headingAvailable: headingRaw !== undefined,
+            valueAvailable: headingRaw !== undefined,
           })}
           direction={parseDirection(direction.value) ?? CompassDirection.NorthUp}
           heading={headingValue}
@@ -623,7 +541,7 @@ export const compassElement = createElement(namespace, {
             optionalBoolean(p.headingSetpointOverride, headingSetpointOverride) ?? false
           }
           animateSetpoint={optionalBoolean(p.animateSetpoint, animateSetpoint) ?? false}
-          headingAdvices={buildAdvices([
+          headingAdvices={buildAngleAdvices([
             {
               type: AdviceType.advice,
               enabled: optionalBoolean(p.adviceEnabled, adviceEnabled),

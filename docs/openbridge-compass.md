@@ -65,7 +65,7 @@ HELIO IDE / Runtime
         ▼
 elements/CompassElement.tsx   ← HELIO element: schema + useDynamicProperty hooks
         │  resolves every DP → raw value, coerces types, applies defaults
-        │  (value mapping helpers live at the top of the same file)
+        │  (shared helpers from utils/valueMapping.ts)
         ▼
 components/Compass.tsx        ← plain React component, strongly typed props
         │  AutoSizer measures the container → square compass of min(w, h)
@@ -82,8 +82,10 @@ imported once in `main.tsx` and injected into the page by rollup.
 |---|---|---|
 | `components/Compass.tsx` | only `className` / `cx` helpers | yes |
 | `elements/CompassElement.tsx` | yes | enums + `Compass` |
+| `utils/valueMapping.ts` | no | enums/types only |
 
-The value mapping helpers in `CompassElement.tsx` are exported and unit-tested.
+The shared helpers in `utils/valueMapping.ts` and the compass-specific
+parsers in `CompassElement.tsx` are exported and unit-tested.
 This works because the HELIO SDK package in `node_modules` is only a **mock**
 (the real implementation is injected by HELIO at runtime as the global
 `HELIO.v1`), so importing the element file in Vitest is harmless.
@@ -95,11 +97,12 @@ src/main.tsx                                  extension registration + CSS impor
 src/components/Compass.tsx                    presentational component
 src/utils/AutoSizer.tsx                       shared container-measuring util
 src/components/Compass.stories.tsx            Storybook stories
-src/elements/CompassElement.tsx               HELIO element + value mapping helpers
+src/elements/CompassElement.tsx               HELIO element + compass-specific parsers
+src/utils/valueMapping.ts                     shared value coercion helpers (all instruments)
 src/dynamicProperties/angleMath.ts            pure angle math (conversion, wrap, cardinal names)
 src/dynamicProperties/angleConversion.tsx     "Angle Conversion" DP
 src/dynamicProperties/cardinalDirection.tsx   "Cardinal Direction" DP
-src/tests/compass.test.ts                     unit tests
+src/tests/instruments.test.ts                 unit tests
 rollup.config.mjs                             bundling incl. CSS injection
 .storybook/preview.tsx                        loads openbridge.css for Storybook
 ```
@@ -252,19 +255,28 @@ Via the AutoSizer's `className`, the compass adds `minHeight: 120`,
 
 ### Value mapping helpers
 
-The top of `src/elements/CompassElement.tsx` contains exported pure functions
-that turn *loosely typed* values (a DynamicProperty bound to a PLC/OPC UA
-variable can deliver strings, numbers, booleans, `undefined`, `NaN`, …) into
-*strictly typed* compass inputs.
+Pure functions turn *loosely typed* values (a DynamicProperty bound to a
+PLC/OPC UA variable can deliver strings, numbers, booleans, `undefined`, `NaN`,
+…) into *strictly typed* instrument inputs.
+
+Shared by all instruments, in `src/utils/valueMapping.ts`:
 
 | Function | Input | Output | Rules |
 |---|---|---|---|
 | `toFiniteNumber(v)` | unknown | `number \| undefined` | numbers (finite only), non-empty numeric strings |
 | `toBoolean(v)` | unknown | `boolean \| undefined` | booleans; numbers (`0` = false); strings `true/1/on/yes`, `false/0/off/no` (case-insensitive) |
+| `normalizeKey(s)` | string | string | lowercase, spaces / `_` / `-` removed |
+| `optionalNumber(ref, dp)` / `optionalBoolean(ref, dp)` | prop ref + DP result | value \| `undefined` | `undefined` when the prop is not configured or not readable, else coerced |
+| `deriveInstrumentState({isOff, isLoading, valueAvailable})` | | `InstrumentState` | `isOff` → `off`; else `isLoading` → `loading`; else no main value → `loading`; else `active` |
+| `buildAngleAdvices(zones)` | list of `{type, enabled, min, max, hinted}` | `AngleAdvice[]` | skip zone if `enabled === false` or min/max missing; angles normalized; `hinted` defaults to `false` |
+| `buildLinearAdvices(zones)` | same | `LinearAdvice[]` | same skipping; min/max ordered (used for thrust) |
+
+Compass-specific, exported from `src/elements/CompassElement.tsx`:
+
+| Function | Input | Output | Rules |
+|---|---|---|---|
 | `parseDirection(v)` | unknown | `CompassDirection \| undefined` | `northUp/headingUp/courseUp`, `north/heading/course`, `N/H/C`, `0/1/2` (number or string). Spaces, `_`, `-` and case are ignored. |
 | `parsePriorityElements(v)` | unknown | `CompassPriorityElement[]` | split on `, ; \| whitespace`, keep `hdg cog rot wind current`, dedupe |
-| `deriveInstrumentState({isOff, isLoading, headingAvailable})` | | `InstrumentState` | `isOff` → `off`; else `isLoading` → `loading`; else no heading → `loading`; else `active` |
-| `buildAdvices(zones)` | list of `{type, enabled, min, max, hinted}` | `AngleAdvice[]` | skip zone if `enabled === false` or min/max missing; angles normalized; `hinted` defaults to `false` |
 | `buildCenterReadouts(display, fractionDigits)` | option string, number | `CompassCenterReadout[]` | see table below |
 
 `normalizeAngle` (wrap to `[0, 360)`) is imported from
@@ -378,13 +390,14 @@ const TOP_VESSEL_IMAGES = Object.values(VesselImage).filter((i) => i.endsWith('-
    ```
 
 3. **Ignore optional props that are not configured** and values that cannot be
-   read, then coerce:
+   read, then coerce – via `optionalNumber` / `optionalBoolean` from
+   `utils/valueMapping.ts`:
 
    ```ts
-   const optionalNumber = (ref, dp) =>
-     ref === undefined || dp.canRead === false ? undefined : toFiniteNumber(dp.value);
-   const optionalBoolean = (ref, dp) =>
-     ref === undefined || dp.canRead === false ? undefined : toBoolean(dp.value);
+   export function optionalNumber(ref: unknown, dp: ReadableValue): number | undefined {
+     return ref === undefined || dp.canRead === false ? undefined : toFiniteNumber(dp.value);
+   }
+   // usage: optionalNumber(p.courseOverGround, courseOverGround)
    ```
 
    Checking the *ref* (`p.xyz === undefined`) matters because the local SDK
@@ -404,7 +417,7 @@ const TOP_VESSEL_IMAGES = Object.values(VesselImage).filter((i) => i.endsWith('-
 
    ```ts
    const headingRaw = heading.canRead === false ? undefined : toFiniteNumber(heading.value);
-   state = deriveInstrumentState({ isOff, isLoading, headingAvailable: headingRaw !== undefined });
+   state = deriveInstrumentState({ isOff, isLoading, valueAvailable: headingRaw !== undefined });
    ```
 
 6. **Fallbacks** for everything (match obc-compass defaults):
@@ -519,9 +532,10 @@ Build: `npm run build` → upload `lib/<name>-<version>.js` to HELIO.
 
 ## 9. Step 6 – Tests and Storybook
 
-**Unit tests** (`src/tests/compass.test.ts`, Vitest) cover the value mapping
-helpers exported from `CompassElement.tsx` (coercion, direction and priority
-parsing, instrument state, advice building, center readouts) and the angle
+**Unit tests** (`src/tests/instruments.test.ts`, Vitest) cover the shared
+helpers from `utils/valueMapping.ts` (coercion, optional values, instrument
+state, angle and linear advice building), the compass parsers from
+`CompassElement.tsx` (direction, priority elements, center readouts) and the angle
 math from `angleMath.ts` (wrap, cardinal directions, conversion round-trips).
 Run `npx vitest run`.
 
@@ -707,7 +721,7 @@ The React wrapper declares **no events**, so the compass is display-only
 - [ ] Install `@oicl/openbridge-webcomponents`, `@oicl/openbridge-webcomponents-react`, dev `rollup-plugin-import-css`
 - [ ] Rollup: React/SDK external, `process.env.NODE_ENV` replaced, `css({ inject: true })`
 - [ ] Import `@oicl/openbridge-webcomponents/dist/openbridge.css` in `main.tsx`
-- [ ] Copy `src/utils/AutoSizer.tsx` and `src/components/Compass.tsx` (and `Compass.stories.tsx`; import `openbridge.css` in `.storybook/preview.tsx`)
+- [ ] Copy `src/utils/AutoSizer.tsx`, `src/utils/valueMapping.ts` and `src/components/Compass.tsx` (and `Compass.stories.tsx`; import `openbridge.css` in `.storybook/preview.tsx`)
 - [ ] Copy `src/elements/CompassElement.tsx`; adjust the `namespace` import
 - [ ] Copy `src/dynamicProperties/*` (`angleMath.ts` is required by the element)
 - [ ] Register element and DPs in `main.tsx`

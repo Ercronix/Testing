@@ -1,13 +1,19 @@
 import { describe, expect, test } from 'vitest';
 import {
-  buildAdvices,
   buildCenterReadouts,
-  deriveInstrumentState,
   parseDirection,
   parsePriorityElements,
+} from '../elements/CompassElement';
+import {
+  buildAngleAdvices,
+  buildLinearAdvices,
+  deriveInstrumentState,
+  normalizeKey,
+  optionalBoolean,
+  optionalNumber,
   toBoolean,
   toFiniteNumber,
-} from '../elements/CompassElement';
+} from '../utils/valueMapping';
 import {
   convertAngle,
   invertAngleConversion,
@@ -32,6 +38,17 @@ describe('value coercion', () => {
     expect(toBoolean('maybe')).toBeUndefined();
   });
 
+  test('normalizeKey', () => {
+    expect(normalizeKey('North_Up - x')).toBe('northupx');
+  });
+
+  test('optional values ignore unconfigured or unreadable props', () => {
+    expect(optionalNumber(undefined, { value: 5, canRead: true })).toBeUndefined();
+    expect(optionalNumber({}, { value: 5, canRead: false })).toBeUndefined();
+    expect(optionalNumber({}, { value: '5', canRead: true })).toBe(5);
+    expect(optionalBoolean({}, { value: 'on', canRead: undefined })).toBe(true);
+  });
+
   test('normalizeAngle', () => {
     expect(normalizeAngle(370)).toBe(10);
     expect(normalizeAngle(-10)).toBe(350);
@@ -54,26 +71,34 @@ describe('enum parsing', () => {
   });
 });
 
-describe('compass configuration', () => {
+describe('instrument configuration', () => {
   test('deriveInstrumentState', () => {
+    expect(deriveInstrumentState({ isOff: true, isLoading: true, valueAvailable: true })).toBe(
+      'off',
+    );
     expect(
-      deriveInstrumentState({ isOff: true, isLoading: true, headingAvailable: true }),
-    ).toBe('off');
-    expect(
-      deriveInstrumentState({ isOff: false, isLoading: undefined, headingAvailable: false }),
+      deriveInstrumentState({ isOff: false, isLoading: undefined, valueAvailable: false }),
     ).toBe('loading');
     expect(
-      deriveInstrumentState({ isOff: undefined, isLoading: undefined, headingAvailable: true }),
+      deriveInstrumentState({ isOff: undefined, isLoading: undefined, valueAvailable: true }),
     ).toBe('active');
   });
 
-  test('buildAdvices skips incomplete or disabled zones', () => {
-    const advices = buildAdvices([
+  test('buildAngleAdvices skips incomplete or disabled zones', () => {
+    const advices = buildAngleAdvices([
       { type: 'advice' as never, enabled: undefined, min: -20, max: 20, hinted: undefined },
       { type: 'caution' as never, enabled: false, min: 10, max: 20, hinted: true },
       { type: 'caution' as never, enabled: true, min: 10, max: undefined, hinted: true },
     ]);
     expect(advices).toEqual([{ type: 'advice', minAngle: 340, maxAngle: 20, hinted: false }]);
+  });
+
+  test('buildLinearAdvices orders min/max and skips incomplete zones', () => {
+    const advices = buildLinearAdvices([
+      { type: 'caution' as never, enabled: true, min: 80, max: 40, hinted: true },
+      { type: 'advice' as never, enabled: undefined, min: undefined, max: 20, hinted: undefined },
+    ]);
+    expect(advices).toEqual([{ type: 'caution', min: 40, max: 80, hinted: true }]);
   });
 
   test('buildCenterReadouts', () => {
