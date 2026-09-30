@@ -33,8 +33,8 @@ npx vitest run                # all unit tests once (`npm run test` = watch mode
 npx vitest run src/tests/instruments.test.ts -t "buildLinearAdvices"   # single test
 npx prettier --write src      # formatting (single quotes, trailing commas, width 100)
 npm run storybook             # http://localhost:9001
-npm run create:element -- gauge-radial --name "Radial Gauge"   # generate a new instrument
-npm run create:element -- --list                               # all OpenBridge components
+npm run create:element -- gauge-radial --name "Radial Gauge"   # generate an element
+npm run create:element -- --list [instruments|indicators|automation]
 ```
 
 CI (`.github/workflows`) runs build, lint and test.
@@ -45,10 +45,11 @@ Each instrument is split into **exactly two files**:
 
 - `src/components/<Name>.tsx` – plain React component with fully resolved,
   strongly typed props. Wraps the OpenBridge React wrapper
-  (`@oicl/openbridge-webcomponents-react/...`) inside `utils/AutoSizer`, which
-  measures the container and renders the instrument as a square of
-  `min(width, height)` (OpenBridge's `faceDiameter` is intentionally not used).
-  Also re-exports the OpenBridge enums the element needs.
+  (`@oicl/openbridge-webcomponents-react/...`). Radial instruments use
+  `utils/AutoSizer`, which measures the container and renders a square of
+  `min(width, height)` (OpenBridge's `faceDiameter` is intentionally not used);
+  strips fill the container; automation symbols and indicators keep their
+  natural size, centered.
 - `src/elements/<Name>Element.tsx` – the HELIO element (`createElement`): props
   schema plus `Component`, which resolves every `useDynamicProperty`, mounts
   every DP's `render()` (needed for subscriptions), coerces values and passes
@@ -57,31 +58,57 @@ Each instrument is split into **exactly two files**:
 Plus a `<Name>.stories.tsx` next to the component, a doc in `docs/`, and
 registration in `src/main.tsx`.
 
-**New instruments are generated, not hand-written:**
+**New elements are generated, not hand-written:**
 `scripts/create-element.mjs` reads the OpenBridge `custom-elements.json`
-manifest (plus enum/interface shapes from the `.d.ts` files) and writes all of
-the above, then runs prettier. Options: `--primary a,b` (required main values
-that drive the `loading` state), `--shape square|fill`, `--icon`, `--force`,
-`--dry-run`. Mapping: number/boolean/string → optional DynamicProperty (manifest
-default used as fallback and shown in the label), string enums → `props.Enum`,
-enum arrays → comma-separated String DP, `*Advice[]` → advice/caution zone
-props, `state` → isOff/isLoading, `priority` → "Enhanced priority". Other types
-are listed as "Not generated" in the element's header comment and doc. Known
-component quirks go in `FALLBACK_OVERRIDES`. After changing the generator,
-regenerate every component in a throwaway copy of the repo (copy `src`,
-`scripts`, configs; symlink `node_modules`; delete the tests; loop over `--list`
-with `--force`) and run tsc, eslint and the build there.
+manifest plus enum/interface shapes from the `.d.ts` files (following imports,
+inherited members via `inheritedFrom`, and a package-wide declaration index)
+and writes all of the above, then runs prettier. It covers three categories,
+grouped like the OpenBridge Storybook: instruments, indicators (navigation
+`*-indicator` + automation `indicator-*`) and automation.
+
+- Options: `--primary a,b` (required main values driving `loading`),
+  `--shape square|fill|intrinsic` (automation/indicators default to
+  `intrinsic` = natural size, centered), `--icon`, `--force`, `--dry-run`,
+  `--no-stories/--no-docs/--no-register`, `--root/--src/--main`.
+- Mapping: number/boolean/string → optional DP (manifest default as fallback and
+  in the label), string/numeric enums → `props.Enum`, enum arrays → String DP,
+  primitive arrays → list DP (array or `"1, 2"`), mixed primitive unions →
+  PrimitiveValue DP, objects/object arrays → JSON DP, `*Advice[]` → zone props,
+  `state` → isOff/isLoading, `priority` → "Enhanced priority". Only DOM/template
+  types are skipped ("Not generated" in the header and doc).
+- Events come from the React wrapper's `.d.ts`: each becomes an Action prop;
+  primitive payload fields become "→ write to" DPs, written via `writeValue`
+  before the action runs. Events and click are disabled in `PreviewEdit`.
+- Quirks: `FALLBACK_OVERRIDES` (fallback values, e.g. ROT → 0) and
+  `DEFAULT_OVERRIDES` (IDE defaults, e.g. `positioning: 'button'`, because the
+  default `point` renders automation symbols as a 0×0 anchor).
+- Portable: finds the project root from cwd, creates folders, and writes missing
+  runtime helpers (`utils/AutoSizer.tsx`, `utils/valueMapping.ts`,
+  `dynamicProperties/angleMath.ts`, `namespace.ts`) from copies embedded at the
+  end of the script. **After changing those files run
+  `node scripts/create-element.mjs --sync-runtime`** – `src/tests/createElement.test.mjs`
+  fails otherwise. It adds the `openbridge.css` import to `main.tsx`/Storybook
+  preview and warns about a missing rollup CSS plugin / NODE_ENV replacement.
+- It only overwrites files carrying its "Generated by" marker, so `Compass` and
+  `AzimuthThruster` (hand-written) are protected even with `--force`.
+- After changing the generator, regenerate every component (all three `--list`
+  categories) in a throwaway project **outside `node_modules`** (Vite skips JSX
+  transforms there) – e.g. `lib/.sweep`: copy `src`, `scripts`, `.storybook`,
+  configs; symlink `node_modules`; use the original template `main.tsx`
+  (`git show 6bb02da:src/main.tsx`); delete the tests – then run tsc, eslint,
+  the build and a Storybook build there. Delete it afterwards (vitest would
+  pick up its tests).
+
 Generated components spread `definedProps(props)`: the React wrappers assign
 every passed prop, so `undefined` would overwrite OpenBridge's own defaults.
-`Compass` and `AzimuthThruster` are hand-written and must not be regenerated
-with `--force`.
 
 Shared code:
 
 - `src/utils/valueMapping.ts` – coercion of loosely typed HELIO values
-  (`toFiniteNumber`, `toBoolean`, `optionalNumber/optionalBoolean(ref, dp)`,
-  `deriveInstrumentState`, `buildAngleAdvices`, `buildLinearAdvices`). Use
-  these in new elements rather than duplicating.
+  (`toFiniteNumber`, `toBoolean`, `optionalNumber/Boolean/String/Primitive/List/Json(ref, dp)`,
+  `parseEnumList`, `deriveInstrumentState`, `buildAngleAdvices`,
+  `buildLinearAdvices`, `writeValue`, `definedProps`). Use these in new
+  elements rather than duplicating.
 - `src/dynamicProperties/` – standalone HELIO dynamic properties;
   `angleMath.ts` holds `normalizeAngle` / `toCardinalDirection`, which the
   elements also use.

@@ -137,3 +137,79 @@ export function definedProps<T extends object>(props: T): Partial<T> {
     Object.entries(props).filter(([, value]) => value !== undefined),
   ) as Partial<T>;
 }
+
+/** Reads an optional dynamic property as string, number or boolean, unchanged. */
+export function optionalPrimitive(
+  ref: unknown,
+  dp: ReadableValue,
+): string | number | boolean | undefined {
+  if (ref === undefined || dp.canRead === false) return undefined;
+  const { value } = dp;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+  return typeof value === 'string' || typeof value === 'boolean' ? value : undefined;
+}
+
+export type ListItemType = 'number' | 'string' | 'boolean' | 'primitive';
+
+function toListItem(value: unknown, type: ListItemType): string | number | boolean | undefined {
+  if (type === 'number') return toFiniteNumber(value);
+  if (type === 'boolean') return toBoolean(value);
+  if (type === 'string') return value === undefined || value === null ? undefined : String(value);
+  return typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number'
+    ? value
+    : undefined;
+}
+
+/**
+ * Reads an optional dynamic property as list. Accepts an array value or a
+ * separated string (`"1, 2; 3"`; number/boolean lists also split on spaces).
+ * Entries that cannot be converted are dropped.
+ */
+export function optionalList(
+  ref: unknown,
+  dp: ReadableValue,
+  type: ListItemType,
+): Array<string | number | boolean> | undefined {
+  if (ref === undefined || dp.canRead === false) return undefined;
+  const { value } = dp;
+  const parts = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value
+          .split(type === 'number' || type === 'boolean' ? /[\s,;|]+/ : /[,;|]/)
+          .map((part) => part.trim())
+          .filter((part) => part !== '')
+      : undefined;
+  return parts
+    ?.map((part) => toListItem(part, type))
+    .filter((part): part is string | number | boolean => part !== undefined);
+}
+
+/**
+ * Reads an optional dynamic property holding structured data: non-string
+ * values (objects, arrays, booleans, numbers) are used as they are, strings are
+ * parsed as JSON. Invalid JSON is ignored.
+ */
+export function optionalJson(ref: unknown, dp: ReadableValue): unknown {
+  if (ref === undefined || dp.canRead === false) return undefined;
+  const { value } = dp;
+  if (typeof value !== 'string') return value ?? undefined;
+  if (value.trim() === '') return undefined;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+}
+
+type WritableValue = { canWrite: boolean | undefined; setValue?(nextValue: unknown): void };
+
+/**
+ * Writes a value to an optional dynamic property (e.g. an event payload into a
+ * data variable). Does nothing if the prop is not configured, not writable or
+ * the value is missing.
+ */
+export function writeValue(ref: unknown, dp: WritableValue, value: unknown): void {
+  if (ref === undefined || value === undefined || dp.canWrite === false) return;
+  dp.setValue?.(value);
+}

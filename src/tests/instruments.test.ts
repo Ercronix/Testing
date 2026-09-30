@@ -12,8 +12,12 @@ import {
   normalizeKey,
   optionalBoolean,
   optionalNumber,
+  optionalJson,
+  optionalList,
+  optionalPrimitive,
   optionalString,
   parseEnumList,
+  writeValue,
   toBoolean,
   toFiniteNumber,
 } from '../utils/valueMapping';
@@ -61,6 +65,43 @@ describe('value coercion', () => {
   test('parseEnumList', () => {
     expect(parseEnumList('HDG, rot;foo hdg', ['hdg', 'cog', 'rot'])).toEqual(['hdg', 'rot']);
     expect(parseEnumList(1, ['hdg'])).toEqual([]);
+  });
+
+  test('optionalPrimitive keeps strings, numbers and booleans', () => {
+    expect(optionalPrimitive({}, { value: 'a', canRead: true })).toBe('a');
+    expect(optionalPrimitive({}, { value: 3, canRead: true })).toBe(3);
+    expect(optionalPrimitive({}, { value: NaN, canRead: true })).toBeUndefined();
+    expect(optionalPrimitive({}, { value: {}, canRead: true })).toBeUndefined();
+  });
+
+  test('optionalList accepts arrays and separated strings', () => {
+    expect(optionalList({}, { value: '1, 2 x;3', canRead: true }, 'number')).toEqual([1, 2, 3]);
+    expect(optionalList({}, { value: [1, '2', 'x'], canRead: true }, 'number')).toEqual([1, 2]);
+    expect(optionalList({}, { value: 'a b, c', canRead: true }, 'string')).toEqual(['a b', 'c']);
+    expect(optionalList(undefined, { value: '1', canRead: true }, 'number')).toBeUndefined();
+  });
+
+  test('optionalJson parses strings and passes objects through', () => {
+    expect(optionalJson({}, { value: '[{"a":1}]', canRead: true })).toEqual([{ a: 1 }]);
+    expect(optionalJson({}, { value: { a: 1 }, canRead: true })).toEqual({ a: 1 });
+    expect(optionalJson({}, { value: '{broken', canRead: true })).toBeUndefined();
+    expect(optionalJson({}, { value: true, canRead: true })).toBe(true);
+    expect(optionalJson({}, { value: 'true', canRead: true })).toBe(true);
+    expect(optionalJson({}, { value: null, canRead: true })).toBeUndefined();
+  });
+
+  test('writeValue only writes configured, writable targets', () => {
+    const written: unknown[] = [];
+    const dp = (canWrite: boolean | undefined) => ({
+      canWrite,
+      setValue: (v: unknown) => written.push(v),
+    });
+    writeValue({}, dp(true), 2);
+    writeValue({}, dp(undefined), 3);
+    writeValue({}, dp(false), 4);
+    writeValue(undefined, dp(true), 5);
+    writeValue({}, dp(true), undefined);
+    expect(written).toEqual([2, 3]);
   });
 
   test('definedProps drops undefined so component defaults apply', () => {
