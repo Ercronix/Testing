@@ -15,18 +15,16 @@ avoid the pitfalls that were found while building it.
 1. [What it is](#1-what-it-is)
 2. [Architecture](#2-architecture)
 3. [Dependencies and project setup](#3-dependencies-and-project-setup)
-4. [Step 1 – Theme CSS (design tokens)](#4-step-1--theme-css-design-tokens)
-5. [Step 2 – `OpenBridgeScope` component](#5-step-2--openbridgescope-component)
-6. [Step 3 – Mapping helpers (`compassMapping.ts`)](#6-step-3--mapping-helpers-compassmappingts)
-7. [Step 4 – Presentational component (`CompassView.tsx`)](#7-step-4--presentational-component-compassviewtsx)
-8. [Step 5 – The HELIO element (`compassElement.tsx`)](#8-step-5--the-helio-element-compasselementtsx)
-9. [Step 6 – Companion dynamic properties](#9-step-6--companion-dynamic-properties)
-10. [Step 7 – Register everything in `main.tsx`](#10-step-7--register-everything-in-maintsx)
-11. [Step 8 – Tests and Storybook](#11-step-8--tests-and-storybook)
-12. [Property reference](#12-property-reference)
-13. [`<obc-compass>` API cheat sheet](#13-obc-compass-api-cheat-sheet)
-14. [Pitfalls and gotchas](#14-pitfalls-and-gotchas)
-15. [Porting checklist](#15-porting-checklist)
+4. [Step 1 – OpenBridge CSS](#4-step-1--openbridge-css)
+5. [Step 2 – Presentational component (`Compass.tsx`)](#5-step-2--presentational-component-compasstsx)
+6. [Step 3 – The HELIO element (`CompassElement.tsx`)](#6-step-3--the-helio-element-compasselementtsx)
+7. [Step 4 – Companion dynamic properties](#7-step-4--companion-dynamic-properties)
+8. [Step 5 – Register everything in `main.tsx`](#8-step-5--register-everything-in-maintsx)
+9. [Step 6 – Tests](#9-step-6--tests)
+10. [Property reference](#10-property-reference)
+11. [`<obc-compass>` API cheat sheet](#11-obc-compass-api-cheat-sheet)
+12. [Pitfalls and gotchas](#12-pitfalls-and-gotchas)
+13. [Porting checklist](#13-porting-checklist)
 
 ---
 
@@ -41,12 +39,14 @@ showing
 - rate of turn (ROT) as spinning dots or a bar,
 - advice and caution arcs,
 - wind and current indicators,
-- a vessel silhouette or numeric center readouts,
-- four OpenBridge colour palettes (bright / day / dusk / night).
+- a vessel silhouette or numeric center readouts.
 
 Almost every input is a **HELIO DynamicProperty**, so every value can be bound
 to a data variable, a static value, or another dynamic property, and can change
-at runtime (e.g. switch day/night palette from a PLC variable).
+at runtime.
+
+The compass always uses the OpenBridge default (**day**) palette; there is no
+palette/theme switching.
 
 Links:
 
@@ -63,59 +63,53 @@ Links:
 HELIO IDE / Runtime
         │  props (DynamicPropertyRefs, enums, numbers, action)
         ▼
-compassElement.tsx          ← HELIO element: schema + useDynamicProperty hooks
+elements/CompassElement.tsx   ← HELIO element: schema + useDynamicProperty hooks
         │  resolves every DP → raw value, coerces types, applies defaults
-        │  (uses pure helpers from compassMapping.ts)
+        │  (value mapping helpers live at the top of the same file)
         ▼
-CompassView.tsx             ← plain React component, strongly typed props
-        │
-        ├── OpenBridgeScope.tsx   ← injects scoped theme CSS once,
-        │                           sets data-obc-theme on a wrapper <div>
+components/Compass.tsx        ← plain React component, strongly typed props
+        │  AutoSizer measures the container → square compass of min(w, h)
         ▼
-<ObcCompass>                ← React wrapper (@oicl/openbridge-webcomponents-react)
+<ObcCompass>                  ← React wrapper (@oicl/openbridge-webcomponents-react)
         ▼
-<obc-compass>               ← Lit web component (@oicl/openbridge-webcomponents)
+<obc-compass>                 ← Lit web component (@oicl/openbridge-webcomponents)
 ```
 
-Why three layers?
+The design tokens (colours, sizes, fonts) come from `openbridge.css`, which is
+imported once in `main.tsx` and injected into the page by rollup.
 
-| Layer | Knows about HELIO? | Knows about OpenBridge? | Testable without HELIO? |
-|---|---|---|---|
-| `compassMapping.ts` | no | enums only | yes (unit tests) |
-| `CompassView.tsx` | only `className` helper | yes | yes (Storybook) |
-| `compassElement.tsx` | yes | via the other two | no (needs HELIO runtime) |
+| File | Knows about HELIO? | Knows about OpenBridge? |
+|---|---|---|
+| `components/Compass.tsx` | only `className` / `cx` helpers | yes |
+| `elements/CompassElement.tsx` | yes | enums + `Compass` |
 
-Keeping the HELIO-specific part thin means most of the logic can be tested
-locally, because the HELIO SDK package in `node_modules` is only a **mock** (the
-real implementation is injected by HELIO at runtime as the global `HELIO.v1`).
+The value mapping helpers in `CompassElement.tsx` are exported and unit-tested.
+This works because the HELIO SDK package in `node_modules` is only a **mock**
+(the real implementation is injected by HELIO at runtime as the global
+`HELIO.v1`), so importing the element file in Vitest is harmless.
 
 ### File list
 
 ```
-scripts/extract-openbridge-theme.mjs          build-time token extractor
-src/openbridge/openbridgeTheme.generated.ts   generated CSS string (do not edit)
-src/openbridge/OpenBridgeScope.tsx            theme wrapper
-src/compass/compassMapping.ts                 pure helpers (parsing, coercion)
-src/compass/CompassView.tsx                   presentational component
-src/compass/CompassView.stories.tsx           Storybook stories
-src/compass/compassElement.tsx                HELIO element
-src/dynamicProperties/angleMath.ts            pure angle conversion math
+src/main.tsx                                  extension registration + CSS import
+src/components/Compass.tsx                    presentational component + AutoSizer
+src/elements/CompassElement.tsx               HELIO element + value mapping helpers
+src/dynamicProperties/angleMath.ts            pure angle math (conversion, wrap, cardinal names)
 src/dynamicProperties/angleConversion.tsx     "Angle Conversion" DP
 src/dynamicProperties/cardinalDirection.tsx   "Cardinal Direction" DP
-src/tests/compassMapping.test.ts              unit tests
-src/main.tsx                                  extension registration
+src/tests/compass.test.ts                     unit tests
+rollup.config.mjs                             bundling incl. CSS injection
 ```
 
 ---
 
 ## 3. Dependencies and project setup
 
-Start from the HELIO extension template (rollup + TypeScript + Storybook +
-Vitest).
+Start from the HELIO extension template (rollup + TypeScript + Vitest).
 
 ```bash
 npm i @oicl/openbridge-webcomponents@^2 @oicl/openbridge-webcomponents-react@^2
-npm i -D postcss@^8          # only used by the theme extraction script
+npm i -D rollup-plugin-import-css@^4
 ```
 
 `@oicl/openbridge-webcomponents-react` depends on `@lit/react`, which pulls
@@ -124,15 +118,16 @@ in `lit`. These are **bundled** into the extension; only `react`,
 
 ### Rollup config requirements
 
-The template's `rollup.config.mjs` already has what is needed; make sure your
-target project has the same:
-
 ```js
+import css from 'rollup-plugin-import-css';
+
 external: ['react', 'react/jsx-runtime', '@hmiproject/helio-sdk'],
 plugins: [
   // OpenBridge + Lit read process.env.NODE_ENV – it must be replaced,
   // otherwise the bundle crashes in the browser ("process is not defined").
   replace({ preventAssignment: true, 'process.env.NODE_ENV': JSON.stringify('production') }),
+  // Injects imported stylesheets (e.g. the OpenBridge theme) into <head>.
+  css({ inject: true, minify: true }),
   nodeResolve({}),
   commonjs({}),
   typescript({}),
@@ -168,118 +163,106 @@ two extensions bundling OpenBridge do not crash each other (first one wins).
 
 ---
 
-## 4. Step 1 – Theme CSS (design tokens)
-
-### The problem
+## 4. Step 1 – OpenBridge CSS
 
 OpenBridge components take **all** colours, sizes and fonts from CSS custom
-properties defined in `dist/openbridge.css` (≈788 KB). That file:
+properties defined in `dist/openbridge.css`. Without them the compass renders
+colourless.
 
-- defines tokens on `:root` and `:root[data-obc-theme="day|night|…"]`, i.e. it
-  expects to own the whole page (`<html data-obc-theme="day">`),
-- contains global rules (`* { … }`, radio-button classes, icon data URLs).
-
-Inside HELIO we do not own the page, so loading it globally would restyle
-HELIO itself. Without the tokens, the compass renders colourless.
-
-### The solution
-
-A Node script (`scripts/extract-openbridge-theme.mjs`, run via
-`npm run generate:theme`) that:
-
-1. Parses `openbridge.css` with **postcss**.
-2. Keeps only top-level rules whose selector is `:root`, `*`,
-   `.obc-component-size-regular`, or `:root[data-obc-theme="X"]`, plus all
-   `@property` at-rules.
-3. **Rescopes** selectors:
-   - `:root`, `*`, `.obc-component-size-regular` → `.obc-helio-scope`
-   - `:root[data-obc-theme="X"]` → `.obc-helio-scope[data-obc-theme="X"]`
-4. Drops every declaration that is not a custom property (`--*`) and every
-   `--icon-*` token (large SVG data URLs, unused by the compass).
-5. **Prunes unused tokens**: scans all `.js` files under
-   `@oicl/openbridge-webcomponents/dist` for `--token-name` strings, keeps
-   those tokens plus any token whose name starts with a dynamically-built
-   prefix (`--instrument-`, `--flash-`; found by grepping for
-   `` `--instrument-${`` in the dist), then adds the transitive closure of
-   `var(--…)` references between tokens.
-6. Minifies whitespace and writes
-   `src/openbridge/openbridgeTheme.generated.ts`:
+Import the stylesheet once at the top of `src/main.tsx`:
 
 ```ts
-export const OPENBRIDGE_SCOPE_CLASS = 'obc-helio-scope';
-export const openbridgeThemeCss = ".obc-helio-scope{--…}…";
+import '@oicl/openbridge-webcomponents/dist/openbridge.css';
 ```
 
-Result: ≈150 KB instead of 788 KB, and nothing leaks outside the element.
+`rollup-plugin-import-css` (with `inject: true`) turns that import into code
+that appends a `<style>` element to `document.head` when the extension loads.
 
-Add to `package.json`:
+What the stylesheet does globally:
 
-```json
-"scripts": {
-  "generate:theme": "node scripts/extract-openbridge-theme.mjs",
-  ...
-}
-```
+- defines the tokens on `:root` (default = **day** palette) and on
+  `:root[data-obc-theme="bright|day|dusk|night"]`,
+- sets `* { -webkit-tap-highlight-color: transparent }` and some `--font-*`
+  tokens on `*`,
+- defines a few `.obc-*` utility classes (radio buttons, scrollbars,
+  categorical colours) that HELIO does not use.
 
-**Re-run it after every OpenBridge upgrade** and commit the generated file
-(rollup and Storybook both import it as a normal TS module; no CSS loader
-needed).
-
-> Why custom properties work through the wrapper: CSS custom properties
-> **inherit**, including into shadow DOM. Setting them on a wrapper `<div>` is
-> enough for the `<obc-compass>` shadow root to see them.
+Everything else is custom properties (`--…`), which only OpenBridge components
+read, so the global import does not restyle HELIO. CSS custom properties
+**inherit into shadow DOM**, which is how `<obc-compass>` sees them.
 
 ---
 
-## 5. Step 2 – `OpenBridgeScope` component
+## 5. Step 2 – Presentational component (`Compass.tsx`)
 
-`src/openbridge/OpenBridgeScope.tsx`
-
-Responsibilities:
-
-1. On first render, append a single `<style id="obc-helio-theme">` with
-   `openbridgeThemeCss` to `document.head` (guarded by `getElementById`, so it
-   is added only once no matter how many compasses are on screen).
-2. Render `<div class="obc-helio-scope …" data-obc-theme={theme}>` around the
-   children.
+`src/components/Compass.tsx` exports a React component with **fully resolved,
+strongly typed** props (`CompassProps`). It also re-exports the OpenBridge
+enums (`CompassDirection`, `HdgArrowStyle`, `CogArrowStyle`, `InstrumentState`,
+`Priority`, `RotType`, `RotPosition`, `VesselImage`) so the element imports
+them from one place.
 
 ```tsx
-export function OpenBridgeScope({ theme, className, style, children }) {
-  ensureOpenBridgeTheme();   // idempotent <style> injection
-  return (
-    <div className={[OPENBRIDGE_SCOPE_CLASS, className].filter(Boolean).join(' ')}
-         data-obc-theme={theme} style={style}>
-      {children}
-    </div>
-  );
-}
+<AutoSizer className={onClick ? clickable : undefined}>
+  {({ width, height }) => {
+    const size = Math.min(width, height);
+    return <ObcCompass style={{ display: 'block', width: size, height: size }} … />;
+  }}
+</AutoSizer>
 ```
 
-Because the palette is an attribute on the wrapper, every element instance can
-have its own palette, and switching palette is just a re-render.
+### AutoSizer
 
-Reuse this component for any other OpenBridge instrument you wrap later.
+A small internal component that fills its parent (`width/height: 100%`,
+`minHeight: 120`, flex-centred, `overflow: hidden`), measures itself with a
+`ResizeObserver`, and calls its render-prop child with `{ width, height }`.
+
+- Children are only rendered once both dimensions are `> 0`, so the compass is
+  never created at zero size.
+- State only updates when the size actually changes.
+- The compass gets an explicit square pixel size of `min(width, height)` and
+  is centred in the remaining space. This avoids the height-collapse problem
+  of `height: 100%` in auto-height layouts.
+
+`faceDiameter` of `<obc-compass>` is intentionally **not** used: it sets a
+fixed intrinsic size, whereas the AutoSizer always scales to the space HELIO
+gives the element.
+
+### Value translation done here
+
+| Component prop | Passed to `<obc-compass>` as | Why |
+|---|---|---|
+| `courseOverGround: undefined` | `courseOverGround = heading` | COG arrow hides under the HDG arrow instead of pointing to 0° |
+| `rateOfTurnDegreesPerMinute: undefined` | `0` | **Important:** when `undefined`, obc-compass falls back to the deprecated `rotationsPerMinute`, whose default is `1` → dots spin forever |
+| `headingSetpoint: undefined` | `null` | obc-compass uses `null` for "no setpoint" |
+| wind speed / direction | both `null` unless **both** are defined | obc-compass only draws wind when both are set |
+| current speed / direction | same as wind | same |
+
+The AutoSizer also sets `fontFamily: "'Noto Sans', sans-serif"`, and adds
+`cursor: pointer` when an `onClick` handler is present.
 
 ---
 
-## 6. Step 3 – Mapping helpers (`compassMapping.ts`)
+## 6. Step 3 – The HELIO element (`CompassElement.tsx`)
 
-Pure functions, no React, no HELIO. They turn *loosely typed* values (a
-DynamicProperty bound to a PLC/OPC UA variable can deliver strings, numbers,
-booleans, `undefined`, `NaN`, …) into *strictly typed* compass inputs.
+### Value mapping helpers
+
+The top of `src/elements/CompassElement.tsx` contains exported pure functions
+that turn *loosely typed* values (a DynamicProperty bound to a PLC/OPC UA
+variable can deliver strings, numbers, booleans, `undefined`, `NaN`, …) into
+*strictly typed* compass inputs.
 
 | Function | Input | Output | Rules |
 |---|---|---|---|
 | `toFiniteNumber(v)` | unknown | `number \| undefined` | numbers (finite only), non-empty numeric strings |
 | `toBoolean(v)` | unknown | `boolean \| undefined` | booleans; numbers (`0` = false); strings `true/1/on/yes`, `false/0/off/no` (case-insensitive) |
-| `normalizeAngle(deg)` | number | number in `[0, 360)` | `((d % 360) + 360) % 360` |
 | `parseDirection(v)` | unknown | `CompassDirection \| undefined` | `northUp/headingUp/courseUp`, `north/heading/course`, `N/H/C`, `0/1/2` (number or string). Spaces, `_`, `-` and case are ignored. |
-| `parseTheme(v)` | unknown | `'bright'\|'day'\|'dusk'\|'night' \| undefined` | names (case-insensitive) or index `0..3` |
 | `parsePriorityElements(v)` | unknown | `CompassPriorityElement[]` | split on `, ; \| whitespace`, keep `hdg cog rot wind current`, dedupe |
 | `deriveInstrumentState({isOff, isLoading, headingAvailable})` | | `InstrumentState` | `isOff` → `off`; else `isLoading` → `loading`; else no heading → `loading`; else `active` |
 | `buildAdvices(zones)` | list of `{type, enabled, min, max, hinted}` | `AngleAdvice[]` | skip zone if `enabled === false` or min/max missing; angles normalized; `hinted` defaults to `false` |
 | `buildCenterReadouts(display, fractionDigits)` | option string, number | `CompassCenterReadout[]` | see table below |
-| `toCardinalDirection(deg, points)` | number, `4\|8\|16` | `'N'`, `'NNE'`, … | 16-point table, index `round(deg / (360/points)) % points`, stepped by `16/points` |
+
+`normalizeAngle` (wrap to `[0, 360)`) is imported from
+`dynamicProperties/angleMath.ts`.
 
 Center display options (`CENTER_DISPLAY_OPTIONS`):
 
@@ -294,55 +277,6 @@ Center display options (`CENTER_DISPLAY_OPTIONS`):
 
 `fractionDigits` is only added to each entry when defined (OpenBridge then
 uses its own default).
-
----
-
-## 7. Step 4 – Presentational component (`CompassView.tsx`)
-
-A React component with **fully resolved, strongly typed** props
-(`CompassViewProps`) that renders:
-
-```tsx
-<OpenBridgeScope theme={theme} className={rootClass}>
-  <ObcCompass ...all props... />
-</OpenBridgeScope>
-```
-
-It also re-exports the OpenBridge enums (`CompassDirection`, `HdgArrowStyle`,
-`CogArrowStyle`, `InstrumentState`, `Priority`, `RotType`, `RotPosition`,
-`VesselImage`) so other files import them from one place.
-
-### Value translation done here
-
-| View prop | Passed to `<obc-compass>` as | Why |
-|---|---|---|
-| `courseOverGround: undefined` | `courseOverGround = heading` | COG arrow hides under the HDG arrow instead of pointing to 0° |
-| `rateOfTurnDegreesPerMinute: undefined` | `0` | **Important:** when `undefined`, obc-compass falls back to the deprecated `rotationsPerMinute`, whose default is `1` → dots spin forever |
-| `headingSetpoint: undefined` | `null` | obc-compass uses `null` for "no setpoint" |
-| wind speed / direction | both `null` unless **both** are defined | obc-compass only draws wind when both are set |
-| current speed / direction | same as wind | same |
-
-### Styling
-
-Uses the HELIO SDK `className()` helper (Emotion under the hood):
-
-```ts
-root:    { width: '100%', height: '100%', minHeight: 120, display: 'flex',
-           alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box',
-           fontFamily: "'Noto Sans', sans-serif" }
-compass: { display: 'block', width: '100%', aspectRatio: '1 / 1', maxHeight: '100%' }
-clickable: { cursor: 'pointer' }
-```
-
-- The `compass` class is only applied when `faceDiameter` is **not** set.
-  With `faceDiameter`, obc-compass sizes itself.
-- `aspectRatio: 1/1` + `maxHeight: 100%` is deliberate. With plain
-  `height: 100%` the compass **collapses to 0 px** whenever the parent has no
-  explicit height (found in Storybook; can also happen in HELIO layouts).
-
----
-
-## 8. Step 5 – The HELIO element (`compassElement.tsx`)
 
 ### Element definition
 
@@ -403,8 +337,8 @@ courseOverGround: props.DynamicProperty({
 ```
 
 `valueType` values used: `'NumericValue'` (numbers), `'Boolean'`, `'String'`,
-`'PrimitiveValue'` (anything scalar – used for palette and orientation so both
-strings *and* integer indices can be bound).
+`'PrimitiveValue'` (anything scalar – used for orientation so both strings
+*and* integer indices can be bound).
 
 Enum options must be a non-empty tuple of strings. The OpenBridge enum values
 are used directly:
@@ -423,9 +357,9 @@ const TOP_VESSEL_IMAGES = Object.values(VesselImage).filter((i) => i.endsWith('-
    ```ts
    const num  = { valueType: values.Number() };
    const bool = { valueType: values.Boolean() };
-   const heading = useDynamicProperty(p.heading, num);
-   const isOff   = useDynamicProperty(p.isOff, bool);
-   const theme   = useDynamicProperty(p.theme);        // no filter: string OR number
+   const heading   = useDynamicProperty(p.heading, num);
+   const isOff     = useDynamicProperty(p.isOff, bool);
+   const direction = useDynamicProperty(p.direction);  // no filter: string OR number
    ```
 
 2. **Mount every DP's `render()` output.** The SDK's own examples do this
@@ -471,7 +405,6 @@ const TOP_VESSEL_IMAGES = Object.values(VesselImage).filter((i) => i.endsWith('-
 
    | Value | Fallback |
    |---|---|
-   | theme | `'day'` |
    | direction | `northUp` |
    | autoAtHeadingSetpoint | `true` |
    | autoAtHeadingSetpointDeadband | `2` |
@@ -486,20 +419,22 @@ const TOP_VESSEL_IMAGES = Object.values(VesselImage).filter((i) => i.endsWith('-
    const onClick = useAction(p.onClick);
    const renderMode = useRenderMode();
    const clickable = onClick.canCall === true && renderMode !== 'PreviewEdit';
-   // → <CompassView onClick={clickable ? onClick.call : undefined} />
+   // → <Compass onClick={clickable ? onClick.call : undefined} />
    ```
 
    Not clickable in the IDE edit mode so selecting the element does not fire it.
 
 ---
 
-## 9. Step 6 – Companion dynamic properties
+## 7. Step 4 – Companion dynamic properties
 
 Both are created with `createDynamicProperty(namespace, { … })` and appear in
 the IDE wherever a DP of a matching value type can be bound (including the
-compass's own inputs).
+compass's own inputs). Their shared math lives in `angleMath.ts`
+(`convertAngle`, `invertAngleConversion`, `normalizeAngle`,
+`toCardinalDirection`).
 
-### Angle Conversion (`angleConversion.tsx` + `angleMath.ts`)
+### Angle Conversion (`angleConversion.tsx`)
 
 Converts a source angle to compass degrees with an offset. **Writable**:
 writing degrees converts back to the source unit, so it can front a setpoint
@@ -539,14 +474,23 @@ compass ("Wind from WSW").
 | `points` | Enum `'4' \| '8' \| '16'` | `'16'` |
 | `includeDegrees` | Boolean "Append degrees" | `false` → `"NNE (22°)"` when true |
 
+`toCardinalDirection(deg, points)` uses a 16-point table, index
+`round(deg / (360/points)) % points`, stepped by `16/points`.
+
 Options: `writable: false`, `valueTypes: ['String', 'PrimitiveValue']`,
 `icon: { name: 'Compass' }`. `render` is forwarded directly from the inner DP.
 
 ---
 
-## 10. Step 7 – Register everything in `main.tsx`
+## 8. Step 5 – Register everything in `main.tsx`
 
 ```ts
+import { createLibraryExtension } from '@hmiproject/helio-sdk';
+import '@oicl/openbridge-webcomponents/dist/openbridge.css';
+import { compassElement } from './elements/CompassElement';
+import { angleConversionProperty } from './dynamicProperties/angleConversion';
+import { cardinalDirectionProperty } from './dynamicProperties/cardinalDirection';
+
 export default createLibraryExtension({
   name: 'OpenBridge Instruments',
   description: 'OpenBridge design system navigation instruments for HELIO',
@@ -567,24 +511,21 @@ Build: `npm run build` → upload `lib/<name>-<version>.js` to HELIO.
 
 ---
 
-## 11. Step 8 – Tests and Storybook
+## 9. Step 6 – Tests
 
-- **Unit tests** (`src/tests/compassMapping.test.ts`, Vitest): cover all
-  coercion/parsing helpers, advice building, center readouts, cardinal
-  directions and angle conversion round-trips. Run `npx vitest run`.
-- **Storybook** (`src/compass/CompassView.stories.tsx`, title
-  `OpenBridge/Compass`): renders `CompassView` directly (not the HELIO element,
-  since the SDK is a mock). Stories: `Default`, `FullyLoaded` (heading-up,
-  advice zones, wind, current, enhanced priority, ROT bar, HDG/COG/ROT
-  readouts), `Night`, `Loading`. The decorator gives the story a fixed
-  420×420 box. Run `npm run storybook` → <http://localhost:9001>.
+**Unit tests** (`src/tests/compass.test.ts`, Vitest) cover the value mapping
+helpers exported from `CompassElement.tsx` (coercion, direction and priority
+parsing, instrument state, advice building, center readouts) and the angle
+math from `angleMath.ts` (wrap, cardinal directions, conversion round-trips).
+Run `npx vitest run`.
 
-What can only be verified inside HELIO: live DP subscriptions, write-back via
-Angle Conversion, the click action, and IDE prop groups.
+What can only be verified inside HELIO: rendering and auto-sizing, live DP
+subscriptions, write-back via Angle Conversion, the click action, and IDE prop
+groups.
 
 ---
 
-## 12. Property reference
+## 10. Property reference
 
 Legend: **DP** = DynamicProperty, *opt* = optional. "obc prop" is the
 `<obc-compass>` property it ends up in.
@@ -615,7 +556,6 @@ Legend: **DP** = DynamicProperty, *opt* = optional. "obc prop" is the
 
 | Key | IDE label | Kind | Required / default | obc prop / effect |
 |---|---|---|---|---|
-| `theme` | Palette (bright \| day \| dusk \| night) | DP PrimitiveValue | required, `StaticValue('day')` | `data-obc-theme` on wrapper; also accepts 0–3 |
 | `direction` | Orientation (northUp \| headingUp \| courseUp) | DP PrimitiveValue | required, `StaticValue('northUp')` | `direction`; also accepts N/H/C, 0–2 |
 | `showLabels` | Show N/E/S/W labels | DP Boolean | required, `StaticValue(true)` | `showLabels` |
 | `tickmarksInside` | Labels inside ring | DP Boolean | opt | `tickmarksInside` |
@@ -626,7 +566,9 @@ Legend: **DP** = DynamicProperty, *opt* = optional. "obc prop" is the
 | `vesselImage` | Vessel image | Enum (`*-top` values of `VesselImage`) | `generic-top` | `vesselImage` |
 | `hdgArrowStyle` | HDG arrow style | Enum `arrowHead needle vector beamLine` | `arrowHead` | `hdgArrowStyle` |
 | `cogArrowStyle` | COG arrow style | Enum `arrowHead needle vector velocityVector` | `arrowHead` | `cogArrowStyle` |
-| `faceDiameter` | Fixed diameter [px] (empty = fill) | Number | opt | `faceDiameter` |
+
+Size is not a property: the compass always auto-sizes to the element's box
+(see §5).
 
 ### Advice zones
 
@@ -669,7 +611,7 @@ Each pair is only shown when **both** values are present.
 
 ---
 
-## 13. `<obc-compass>` API cheat sheet
+## 11. `<obc-compass>` API cheat sheet
 
 Defaults from `obc-compass` v2.0.0 (constructor in `compass.js`):
 
@@ -698,21 +640,23 @@ Defaults from `obc-compass` v2.0.0 (constructor in `compass.js`):
 | `priority` | `regular \| enhanced` | `regular` |
 | `priorityElements` | `('hdg'\|'cog'\|'rot'\|'wind'\|'current')[]` | `['hdg']` |
 | `showLabels`, `tickmarksInside` | boolean | `false` |
-| `faceDiameter` | `number \| undefined` | `undefined` (fill container) |
+| `faceDiameter` | `number \| undefined` | `undefined` (fill container; not used here) |
 
 The React wrapper declares **no events**, so the compass is display-only
 (no drag-to-set-setpoint). Use the HELIO `onClick` action for interaction.
 
 ---
 
-## 14. Pitfalls and gotchas
+## 12. Pitfalls and gotchas
 
-1. **Theme tokens are required.** Without the scoped CSS the compass renders
-   without colours. Do not load `openbridge.css` globally in HELIO.
+1. **The OpenBridge CSS is required.** Without the `openbridge.css` import in
+   `main.tsx` (and the rollup CSS plugin with `inject: true`) the compass
+   renders without colours.
 2. **`rateOfTurnDegreesPerMinute` must never be `undefined`** – pass `0`, or
    the deprecated `rotationsPerMinute = 1` makes the dots spin.
-3. **Height collapse** – use `aspect-ratio: 1/1; max-height: 100%` rather than
-   `height: 100%` on the compass.
+3. **Sizing** – the AutoSizer gives the compass explicit pixel dimensions.
+   Plain `height: 100%` on the compass collapses to 0 px when the parent has no
+   explicit height.
 4. **`process.env.NODE_ENV`** must be replaced at build time (rollup `replace`).
 5. **The local HELIO SDK is a mock** – `useDynamicProperty` returns static
    placeholder values and `render()` returns `null`. Real behaviour only in
@@ -722,9 +666,10 @@ The React wrapper declares **no events**, so the compass is display-only
 7. **Stable identifiers** – element/DP `name` and the namespace are IDs;
    changing them breaks existing projects (use `id` or schema migrations
    instead, see `src/examples/elements/elementWithMigration.tsx`).
-8. **Bundle size** – about 1 MB unminified: the compass transitively imports
-   ~40 other OpenBridge components (readouts, menus, icons) plus 150 KB of
-   tokens. Add `@rollup/plugin-terser` if size matters.
+8. **Bundle size** – about 1.6 MB unminified JS: the compass transitively
+   imports ~40 other OpenBridge components (readouts, menus, icons), plus the
+   full `openbridge.css` (≈788 KB source, minified on inject). Add
+   `@rollup/plugin-terser` if size matters.
 9. **Fonts** – OpenBridge is designed for *Noto Sans*. The element requests it
    via `font-family` but does not load it; the browser falls back to
    `sans-serif` if HELIO does not provide it.
@@ -734,17 +679,15 @@ The React wrapper declares **no events**, so the compass is display-only
 
 ---
 
-## 15. Porting checklist
+## 13. Porting checklist
 
-- [ ] Install `@oicl/openbridge-webcomponents`, `@oicl/openbridge-webcomponents-react`, dev `postcss`
-- [ ] Rollup: React/SDK external, `process.env.NODE_ENV` replaced
-- [ ] Copy `scripts/extract-openbridge-theme.mjs`, add `generate:theme` script, run it
-- [ ] Copy `src/openbridge/OpenBridgeScope.tsx`
-- [ ] Copy `src/compass/compassMapping.ts` and `src/compass/CompassView.tsx`
-- [ ] Copy `src/compass/compassElement.tsx`; adjust the `namespace` import
-- [ ] Copy `src/dynamicProperties/*` (optional)
+- [ ] Install `@oicl/openbridge-webcomponents`, `@oicl/openbridge-webcomponents-react`, dev `rollup-plugin-import-css`
+- [ ] Rollup: React/SDK external, `process.env.NODE_ENV` replaced, `css({ inject: true })`
+- [ ] Import `@oicl/openbridge-webcomponents/dist/openbridge.css` in `main.tsx`
+- [ ] Copy `src/components/Compass.tsx`
+- [ ] Copy `src/elements/CompassElement.tsx`; adjust the `namespace` import
+- [ ] Copy `src/dynamicProperties/*` (`angleMath.ts` is required by the element)
 - [ ] Register element and DPs in `main.tsx`
 - [ ] Set package `name`, namespace, extension `name`/`author`
 - [ ] `npx tsc --noEmit && npm run lint && npx vitest run && npm run build`
-- [ ] Check Storybook `OpenBridge/Compass` stories (day + night)
-- [ ] Upload the bundle to HELIO and test: live values, palette switch, loading state, click action
+- [ ] Upload the bundle to HELIO and test: live values, auto-sizing, loading state, click action

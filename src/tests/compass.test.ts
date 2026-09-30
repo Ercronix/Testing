@@ -3,15 +3,17 @@ import {
   buildAdvices,
   buildCenterReadouts,
   deriveInstrumentState,
-  normalizeAngle,
   parseDirection,
   parsePriorityElements,
-  parseTheme,
   toBoolean,
-  toCardinalDirection,
   toFiniteNumber,
-} from '../compass/compassMapping';
-import { convertAngle, invertAngleConversion } from '../dynamicProperties/angleMath';
+} from '../elements/CompassElement';
+import {
+  convertAngle,
+  invertAngleConversion,
+  normalizeAngle,
+  toCardinalDirection,
+} from '../dynamicProperties/angleMath';
 
 describe('value coercion', () => {
   test('toFiniteNumber', () => {
@@ -44,12 +46,6 @@ describe('enum parsing', () => {
     expect(parseDirection('N')).toBe('northUp');
     expect(parseDirection(1)).toBe('headingUp');
     expect(parseDirection('sideways')).toBeUndefined();
-  });
-
-  test('parseTheme', () => {
-    expect(parseTheme('Night')).toBe('night');
-    expect(parseTheme(0)).toBe('bright');
-    expect(parseTheme('dark')).toBeUndefined();
   });
 
   test('parsePriorityElements', () => {

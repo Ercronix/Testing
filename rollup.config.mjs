@@ -3,6 +3,7 @@ import externalGlobals from 'rollup-plugin-external-globals';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import replace from '@rollup/plugin-replace';
 import commonjs from '@rollup/plugin-commonjs';
+import css from 'rollup-plugin-import-css';
 
 // eslint-disable-next-line no-undef
 const { npm_package_name: name, npm_package_version: version } = process.env;
@@ -27,6 +28,8 @@ export default {
       'process.env.NODE_ENV': JSON.stringify('production'),
     }),
 
+    // Injects imported stylesheets (e.g. the OpenBridge theme) into <head>.
+    css({ inject: true, minify: true }),
     nodeResolve({}),
     commonjs({}),
     typescript({}),

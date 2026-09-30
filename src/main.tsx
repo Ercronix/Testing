@@ -1,5 +1,6 @@
 import { createLibraryExtension } from '@hmiproject/helio-sdk';
-import { compassElement } from './compass/compassElement';
+import '@oicl/openbridge-webcomponents/dist/openbridge.css';
+import { compassElement } from './elements/CompassElement';
 import { angleConversionProperty } from './dynamicProperties/angleConversion';
 import { cardinalDirectionProperty } from './dynamicProperties/cardinalDirection';
 

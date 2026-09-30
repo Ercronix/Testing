@@ -7,7 +7,7 @@ import {
   values,
 } from '@hmiproject/helio-sdk';
 import { namespace } from '../namespace';
-import { normalizeAngle, toCardinalDirection } from '../compass/compassMapping';
+import { normalizeAngle, toCardinalDirection } from './angleMath';
 
 /**
  * Turns an angle into a compass rose name such as "NNE" – useful for labels
