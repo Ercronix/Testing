@@ -17,7 +17,7 @@ import type { AngleAdvice } from '@oicl/openbridge-webcomponents/dist/navigation
 import { VesselImage } from '@oicl/openbridge-webcomponents/dist/navigation-instruments/watch/vessel.js';
 import { ObcCompass } from '@oicl/openbridge-webcomponents-react/navigation-instruments/compass/compass.js';
 import { className, cx } from '@hmiproject/helio-sdk';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { AutoSizer } from '../utils/AutoSizer';
 
 export type CompassProps = {
   state: InstrumentState;
@@ -59,52 +59,12 @@ export type CompassProps = {
 };
 
 const classNames = {
-  autoSizer: className({
-    width: '100%',
-    height: '100%',
+  root: className({
     minHeight: 120,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
     fontFamily: "'Noto Sans', sans-serif",
   }),
   clickable: className({ cursor: 'pointer' }),
 };
-
-type Size = { width: number; height: number };
-
-/** Measures the space it is given and renders its children with that size. */
-function AutoSizer({
-  className,
-  children,
-}: {
-  className?: string;
-  children: (size: Size) => ReactNode;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState<Size>({ width: 0, height: 0 });
-
-  useEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-
-    const observer = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect;
-      setSize((previous) =>
-        previous.width === width && previous.height === height ? previous : { width, height },
-      );
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div ref={ref} className={cx(classNames.autoSizer, className)}>
-      {size.width > 0 && size.height > 0 && children(size)}
-    </div>
-  );
-}
 
 /**
  * Presentational wrapper around OpenBridge's `<obc-compass>`. Receives fully
@@ -119,7 +79,7 @@ export function Compass({ onClick, ...props }: CompassProps) {
   const hasCurrent = props.currentSpeed !== undefined && props.currentFromDirection !== undefined;
 
   return (
-    <AutoSizer className={onClick ? classNames.clickable : undefined}>
+    <AutoSizer className={cx(classNames.root, onClick && classNames.clickable)}>
       {({ width, height }) => {
         const size = Math.min(width, height);
         return (

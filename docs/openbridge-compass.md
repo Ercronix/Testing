@@ -92,7 +92,8 @@ This works because the HELIO SDK package in `node_modules` is only a **mock**
 
 ```
 src/main.tsx                                  extension registration + CSS import
-src/components/Compass.tsx                    presentational component + AutoSizer
+src/components/Compass.tsx                    presentational component
+src/utils/AutoSizer.tsx                       shared container-measuring util
 src/components/Compass.stories.tsx            Storybook stories
 src/elements/CompassElement.tsx               HELIO element + value mapping helpers
 src/dynamicProperties/angleMath.ts            pure angle math (conversion, wrap, cardinal names)
@@ -205,7 +206,7 @@ enums (`CompassDirection`, `HdgArrowStyle`, `CogArrowStyle`, `InstrumentState`,
 them from one place.
 
 ```tsx
-<AutoSizer className={onClick ? clickable : undefined}>
+<AutoSizer className={cx(root, onClick && clickable)}>
   {({ width, height }) => {
     const size = Math.min(width, height);
     return <ObcCompass style={{ display: 'block', width: size, height: size }} … />;
@@ -213,13 +214,14 @@ them from one place.
 </AutoSizer>
 ```
 
-### AutoSizer
+### AutoSizer (`src/utils/AutoSizer.tsx`)
 
-A small internal component that fills its parent (`width/height: 100%`,
-`minHeight: 120`, flex-centred, `overflow: hidden`), measures itself with a
-`ResizeObserver`, and calls its render-prop child with `{ width, height }`.
+A shared util for all instrument components. It fills its parent
+(`width/height: 100%`, flex-centred, `overflow: hidden`), measures itself with
+a `ResizeObserver`, and calls its render-prop child with `{ width, height }`
+(exported type `Size`). An optional `className` is merged onto the wrapper.
 
-- Children are only rendered once both dimensions are `> 0`, so the compass is
+- Children are only rendered once both dimensions are `> 0`, so a component is
   never created at zero size.
 - State only updates when the size actually changes.
 - The compass gets an explicit square pixel size of `min(width, height)` and
@@ -240,8 +242,9 @@ gives the element.
 | wind speed / direction | both `null` unless **both** are defined | obc-compass only draws wind when both are set |
 | current speed / direction | same as wind | same |
 
-The AutoSizer also sets `fontFamily: "'Noto Sans', sans-serif"`, and adds
-`cursor: pointer` when an `onClick` handler is present.
+Via the AutoSizer's `className`, the compass adds `minHeight: 120`,
+`fontFamily: "'Noto Sans', sans-serif"`, and `cursor: pointer` when an
+`onClick` handler is present.
 
 ---
 
@@ -704,7 +707,7 @@ The React wrapper declares **no events**, so the compass is display-only
 - [ ] Install `@oicl/openbridge-webcomponents`, `@oicl/openbridge-webcomponents-react`, dev `rollup-plugin-import-css`
 - [ ] Rollup: React/SDK external, `process.env.NODE_ENV` replaced, `css({ inject: true })`
 - [ ] Import `@oicl/openbridge-webcomponents/dist/openbridge.css` in `main.tsx`
-- [ ] Copy `src/components/Compass.tsx` (and `Compass.stories.tsx`; import `openbridge.css` in `.storybook/preview.tsx`)
+- [ ] Copy `src/utils/AutoSizer.tsx` and `src/components/Compass.tsx` (and `Compass.stories.tsx`; import `openbridge.css` in `.storybook/preview.tsx`)
 - [ ] Copy `src/elements/CompassElement.tsx`; adjust the `namespace` import
 - [ ] Copy `src/dynamicProperties/*` (`angleMath.ts` is required by the element)
 - [ ] Register element and DPs in `main.tsx`
