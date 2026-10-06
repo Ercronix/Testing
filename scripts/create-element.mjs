@@ -21,7 +21,7 @@
  *
  * Usage:
  *   node scripts/create-element.mjs <component> [options]
- *   node scripts/create-element.mjs --list [instruments|indicators|automation|building-blocks]
+ *   node scripts/create-element.mjs --list [instruments|indicators|automation|building-blocks|bars-graphs]
  *
  *   <component>            OpenBridge tag without `obc-`, e.g. `gauge-radial`, `pump`, `bar-vertical`
  *   --name "Radial Gauge"  display name (default: derived from the tag)
@@ -163,21 +163,51 @@ const CATEGORIES = {
     helioCategory: 'OpenBridge Building Blocks',
     docsPath: (tag) => `building-blocks-${tag}`,
   },
+  'bars-graphs': {
+    label: 'Bars and Graphs',
+    directory: 'BarsGraphs',
+    helioCategory: 'OpenBridge Bars and Graphs',
+    docsPath: (tag) => `bars-and-graphs-${tag}`,
+  },
 };
 
 /**
- * Building blocks that cannot be configured from HELIO values: `alert-list`
- * only lays out slotted alert items and has no properties of its own.
+ * Components whose OpenBridge Storybook group differs from their source
+ * folder (taken from the story titles; the stories are not in the npm
+ * package). `null` = not generated: `alert-list` only lays out slotted alert
+ * items, `circular-progress` has no story and is only used inside other
+ * components.
  */
-const EXCLUDED_TAGS = new Set(['obc-alert-list']);
+const STORYBOOK_CATEGORY = {
+  'obc-watch': 'building-blocks',
+  'obc-watch-flat': 'building-blocks',
+  'obc-textbox': 'building-blocks',
+  'obc-sequence-loading-spinner': 'building-blocks',
+  'obc-automation-button-readout-stack': 'building-blocks',
+  'obc-bar-horizontal': 'bars-graphs',
+  'obc-bar-vertical': 'bars-graphs',
+  'obc-graph-mini': 'bars-graphs',
+  'obc-indicator-graph': 'bars-graphs',
+  'obc-tunnel-thruster': 'indicators',
+  'obc-sequence-connector': 'automation',
+  'obc-sequence-step': 'automation',
+  'obc-sequence-toolbar': 'automation',
+  'obc-alert-list': null,
+  'obc-circular-progress': null,
+};
 
-/** Same grouping as the OpenBridge Storybook. */
+/**
+ * Same grouping as the OpenBridge Storybook, except that the automation
+ * `indicator-*` symbols (Storybook: "Automation/Indicators") are indicators.
+ */
 function categoryOf(mod, tag) {
+  if (tag in STORYBOOK_CATEGORY) return STORYBOOK_CATEGORY[tag] ?? undefined;
   const area = mod.path.split('/')[1];
   if (area === 'navigation-instruments')
     return /-indicator$/.test(tag) ? 'indicators' : 'instruments';
   if (area === 'automation') return /^obc-indicator-/.test(tag) ? 'indicators' : 'automation';
-  if (area === 'building-blocks' && !EXCLUDED_TAGS.has(tag)) return 'building-blocks';
+  if (area === 'building-blocks') return 'building-blocks';
+  if (area === 'bars-graphs') return 'bars-graphs';
   return undefined;
 }
 
@@ -655,13 +685,11 @@ const DEFAULT_OVERRIDES = {
  * - `sizeProps` feeds the measured container size into numeric props instead
  *   of exposing them in HELIO, e.g. the bars draw their scale `width`/`height`
  *   px long and would otherwise ignore the size of the HELIO box.
- * - `hostStyle` is merged into the web component's style.
  */
 const COMPONENT_LAYOUT = {
   'obc-bar-horizontal': { shape: 'fill', sizeProps: { width: 'width' } },
   'obc-bar-vertical': { shape: 'fill', sizeProps: { height: 'height' } },
-  // The host is `position: absolute` with 100 % size, which would escape the box.
-  'obc-circular-progress': { shape: 'square', hostStyle: { position: 'relative' } },
+  'obc-watch-flat': { shape: 'fill', sizeProps: { width: 'width', height: 'height' } },
 };
 const layout = COMPONENT_LAYOUT[tag] ?? {};
 const sizePropNames = new Set(Object.values(layout.sizeProps ?? {}));
@@ -1232,10 +1260,7 @@ const componentBody =
       {({ width, height }) => {
         ${shape === 'square' ? 'const size = Math.min(width, height);\n        ' : ''}return (
           <${obcClass}
-            style={{ display: 'block', ${[
-              ...Object.entries(layout.hostStyle ?? {}).map(([k, v]) => `${k}: ${q(v)}`),
-              shape === 'square' ? 'width: size, height: size' : 'width, height',
-            ].join(', ')} }}
+            style={{ display: 'block', ${shape === 'square' ? 'width: size, height: size' : 'width, height'} }}
             onClick={onClick}${Object.entries(layout.sizeProps ?? {})
               .map(
                 ([dimension, prop]) =>

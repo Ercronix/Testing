@@ -12,10 +12,7 @@ import {
 import { AdviceType } from '@oicl/openbridge-webcomponents/dist/navigation-instruments/watch/advice.js';
 import { Fragment } from 'react';
 import { namespace } from '../../namespace';
-import {
-  BarHorizontal,
-  type BarHorizontalProps,
-} from '../../components/BuildingBlocks/BarHorizontal';
+import { BarVertical, type BarVerticalProps } from '../../components/BarsGraphs/BarVertical';
 import {
   buildLinearAdvices,
   deriveInstrumentState,
@@ -25,10 +22,10 @@ import {
   toFiniteNumber,
 } from '../../utils/valueMapping';
 
-export const barHorizontalElement = createElement(namespace, {
-  name: 'OpenBridge Bar Horizontal',
-  description: 'Horizontal SVG bar + external scale (OpenBridge design system).',
-  category: 'OpenBridge Building Blocks',
+export const barVerticalElement = createElement(namespace, {
+  name: 'OpenBridge Bar Vertical',
+  description: 'Vertical SVG bar + external scale (OpenBridge design system).',
+  category: 'OpenBridge Bars and Graphs',
   icon: { name: 'Dashboard' },
 
   traits: [traits.Control],
@@ -74,14 +71,14 @@ export const barHorizontalElement = createElement(namespace, {
       valueType: 'Boolean',
       optional: true,
     }),
-    paddingLeft: props.DynamicProperty({
-      label: 'Padding left',
+    paddingTop: props.DynamicProperty({
+      label: 'Padding top',
       propGroup: 'display',
       valueType: 'NumericValue',
       optional: true,
     }),
-    paddingRight: props.DynamicProperty({
-      label: 'Padding right',
+    paddingBottom: props.DynamicProperty({
+      label: 'Padding bottom',
       propGroup: 'display',
       valueType: 'NumericValue',
       optional: true,
@@ -366,8 +363,8 @@ export const barHorizontalElement = createElement(namespace, {
     const minValueDp = useDynamicProperty(p.minValue, { valueType: values.Number() });
     const maxValueDp = useDynamicProperty(p.maxValue, { valueType: values.Number() });
     const reverseDp = useDynamicProperty(p.reverse, { valueType: values.Boolean() });
-    const paddingLeftDp = useDynamicProperty(p.paddingLeft, { valueType: values.Number() });
-    const paddingRightDp = useDynamicProperty(p.paddingRight, { valueType: values.Number() });
+    const paddingTopDp = useDynamicProperty(p.paddingTop, { valueType: values.Number() });
+    const paddingBottomDp = useDynamicProperty(p.paddingBottom, { valueType: values.Number() });
     const fixedAspectRatioDp = useDynamicProperty(p.fixedAspectRatio, {
       valueType: values.Boolean(),
     });
@@ -441,8 +438,8 @@ export const barHorizontalElement = createElement(namespace, {
       minValueDp,
       maxValueDp,
       reverseDp,
-      paddingLeftDp,
-      paddingRightDp,
+      paddingTopDp,
+      paddingBottomDp,
       fixedAspectRatioDp,
       scaleReferenceSizeDp,
       hasScaleDp,
@@ -493,13 +490,13 @@ export const barHorizontalElement = createElement(namespace, {
         {onClick.render()}
         {onScaleDimensionsChangedAction.render()}
 
-        <BarHorizontal
+        <BarVertical
           minValue={optionalNumber(p.minValue, minValueDp) ?? 0}
           maxValue={optionalNumber(p.maxValue, maxValueDp) ?? 100}
           reverse={optionalBoolean(p.reverse, reverseDp) ?? false}
-          paddingLeft={optionalNumber(p.paddingLeft, paddingLeftDp)}
-          paddingRight={optionalNumber(p.paddingRight, paddingRightDp)}
-          side={p.side as BarHorizontalProps['side']}
+          paddingTop={optionalNumber(p.paddingTop, paddingTopDp)}
+          paddingBottom={optionalNumber(p.paddingBottom, paddingBottomDp)}
+          side={p.side as BarVerticalProps['side']}
           fixedAspectRatio={optionalBoolean(p.fixedAspectRatio, fixedAspectRatioDp) ?? false}
           scaleReferenceSize={optionalNumber(p.scaleReferenceSize, scaleReferenceSizeDp) ?? 384}
           hasScale={optionalBoolean(p.hasScale, hasScaleDp) ?? true}
@@ -509,7 +506,7 @@ export const barHorizontalElement = createElement(namespace, {
           }
           hasBar={optionalBoolean(p.hasBar, hasBarDp) ?? false}
           scaleBackground={optionalBoolean(p.scaleBackground, scaleBackgroundDp) ?? false}
-          barContainerStyle={p.barContainerStyle as BarHorizontalProps['barContainerStyle']}
+          barContainerStyle={p.barContainerStyle as BarVerticalProps['barContainerStyle']}
           barThickness={optionalNumber(p.barThickness, barThicknessDp) ?? 24}
           tickThickness={optionalNumber(p.tickThickness, tickThicknessDp) ?? 24}
           labelThickness={optionalNumber(p.labelThickness, labelThicknessDp) ?? 60}
@@ -517,7 +514,7 @@ export const barHorizontalElement = createElement(namespace, {
             optionalNumberList(
               p.mainTickmarks,
               mainTickmarksDp,
-            ) as BarHorizontalProps['mainTickmarks']
+            ) as BarVerticalProps['mainTickmarks']
           }
           primaryTickmarkInterval={optionalNumber(
             p.primaryTickmarkInterval,
@@ -531,19 +528,17 @@ export const barHorizontalElement = createElement(namespace, {
             p.tertiaryTickmarkInterval,
             tertiaryTickmarkIntervalDp,
           )}
-          scaleType={p.scaleType as BarHorizontalProps['scaleType']}
-          frameStyle={p.frameStyle as BarHorizontalProps['frameStyle']}
-          borderRadiusPosition={
-            p.borderRadiusPosition as BarHorizontalProps['borderRadiusPosition']
-          }
+          scaleType={p.scaleType as BarVerticalProps['scaleType']}
+          frameStyle={p.frameStyle as BarVerticalProps['frameStyle']}
+          borderRadiusPosition={p.borderRadiusPosition as BarVerticalProps['borderRadiusPosition']}
           instrumentMode={optionalBoolean(p.instrumentMode, instrumentModeDp) ?? false}
           borderRadius={optionalNumber(p.borderRadius, borderRadiusDp)}
           priority={
             (optionalBoolean(p.enhancedPriority, enhancedPriorityDp)
               ? 'enhanced'
-              : 'regular') as BarHorizontalProps['priority']
+              : 'regular') as BarVerticalProps['priority']
           }
-          fillMode={p.fillMode as BarHorizontalProps['fillMode']}
+          fillMode={p.fillMode as BarVerticalProps['fillMode']}
           fillMin={optionalNumber(p.fillMin, fillMinDp)}
           fillMax={optionalNumber(p.fillMax, fillMaxDp)}
           value={valueRaw ?? 0}
@@ -552,7 +547,7 @@ export const barHorizontalElement = createElement(namespace, {
             isLoading: optionalBoolean(p.isLoading, isLoadingDp),
             valueAvailable: valueRaw !== undefined,
           })}
-          advicePosition={p.advicePosition as BarHorizontalProps['advicePosition']}
+          advicePosition={p.advicePosition as BarVerticalProps['advicePosition']}
           advices={
             buildLinearAdvices([
               {
@@ -569,7 +564,7 @@ export const barHorizontalElement = createElement(namespace, {
                 max: optionalNumber(p.cautionMax, cautionMaxDp),
                 hinted: optionalBoolean(p.cautionHinted, cautionHintedDp),
               },
-            ]) as BarHorizontalProps['advices']
+            ]) as BarVerticalProps['advices']
           }
           highlightCurrentValue={
             optionalBoolean(p.highlightCurrentValue, highlightCurrentValueDp) ?? false
