@@ -6,6 +6,11 @@ import { radialGaugeElement } from './elements/RadialGaugeElement';
 import { flatCompassElement } from './elements/FlatCompassElement';
 import { angleConversionProperty } from './dynamicProperties/angleConversion';
 import { cardinalDirectionProperty } from './dynamicProperties/cardinalDirection';
+import { barHorizontalElement } from './elements/BuildingBlocks/BarHorizontalElement';
+import { barVerticalElement } from './elements/BuildingBlocks/BarVerticalElement';
+import { circularProgressElement } from './elements/BuildingBlocks/CircularProgressElement';
+import { instrumentRadialElement } from './elements/BuildingBlocks/InstrumentRadialElement';
+import { readoutBlockElement } from './elements/BuildingBlocks/ReadoutBlockElement';
 
 export default createLibraryExtension({
   name: 'OpenBridge Instruments',
@@ -19,5 +24,15 @@ export default createLibraryExtension({
 
   dynamicProperties: [angleConversionProperty, cardinalDirectionProperty],
 
-  elements: [compassElement, azimuthThrusterElement, radialGaugeElement, flatCompassElement],
+  elements: [
+    compassElement,
+    azimuthThrusterElement,
+    radialGaugeElement,
+    flatCompassElement,
+    barHorizontalElement,
+    barVerticalElement,
+    circularProgressElement,
+    instrumentRadialElement,
+    readoutBlockElement,
+  ],
 });
