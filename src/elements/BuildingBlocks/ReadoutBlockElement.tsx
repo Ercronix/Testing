@@ -10,6 +10,7 @@ import {
 } from '@hmiproject/helio-sdk';
 import { Fragment } from 'react';
 import { namespace } from '../../namespace';
+import { OpenBridgeTheme } from '../../utils/OpenBridgeTheme';
 import { ReadoutBlock, type ReadoutBlockProps } from '../../components/BuildingBlocks/ReadoutBlock';
 import {
   optionalBoolean,
@@ -215,7 +216,7 @@ export const readoutBlockElement = createElement(namespace, {
     const clickable = onClick.canCall === true && interactive;
 
     return (
-      <Fragment>
+      <OpenBridgeTheme>
         {subscriptions.map((dp, index) => (
           <Fragment key={index}>{dp.render()}</Fragment>
         ))}
@@ -246,7 +247,7 @@ export const readoutBlockElement = createElement(namespace, {
           hidePhase={p.hidePhase as ReadoutBlockProps['hidePhase']}
           onClick={clickable ? onClick.call : undefined}
         />
-      </Fragment>
+      </OpenBridgeTheme>
     );
   },
 });

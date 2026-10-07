@@ -10,6 +10,7 @@ import {
 } from '@hmiproject/helio-sdk';
 import { Fragment } from 'react';
 import { namespace } from '../../namespace';
+import { OpenBridgeTheme } from '../../utils/OpenBridgeTheme';
 import { Watch, type WatchProps } from '../../components/BuildingBlocks/Watch';
 import {
   deriveInstrumentState,
@@ -560,7 +561,7 @@ export const watchElement = createElement(namespace, {
     const clickable = onClick.canCall === true && interactive;
 
     return (
-      <Fragment>
+      <OpenBridgeTheme>
         {subscriptions.map((dp, index) => (
           <Fragment key={index}>{dp.render()}</Fragment>
         ))}
@@ -651,7 +652,7 @@ export const watchElement = createElement(namespace, {
           }
           onClick={clickable ? onClick.call : undefined}
         />
-      </Fragment>
+      </OpenBridgeTheme>
     );
   },
 });

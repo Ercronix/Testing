@@ -22,7 +22,7 @@ export default createLibraryExtension({
   version: '1.0.0',
   author: 'mornhinweg',
 
-  minimumRequiredHelioVersion: '25.4.0',
+  minimumRequiredHelioVersion: '26.2.0',
 
   actions: [],
 

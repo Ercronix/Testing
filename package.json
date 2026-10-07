@@ -14,7 +14,7 @@
     "storybook": "storybook dev --port=9001 --ci"
   },
   "dependencies": {
-    "@hmiproject/helio-sdk": "^1.0.0",
+    "@hmiproject/helio-sdk": "^1.1.0",
     "@oicl/openbridge-webcomponents": "^2.0.0",
     "@oicl/openbridge-webcomponents-react": "^2.0.0"
   },

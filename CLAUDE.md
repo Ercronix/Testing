@@ -95,7 +95,7 @@ stories are not in the npm package; titles come from the
   default `point` renders automation symbols as a 0×0 anchor).
 - Portable: finds the project root from cwd, creates folders, and writes missing
   runtime helpers (`utils/AutoSizer.tsx`, `utils/valueMapping.ts`,
-  `dynamicProperties/angleMath.ts`, `namespace.ts`) from copies embedded at the
+  `utils/OpenBridgeTheme.tsx`, `dynamicProperties/angleMath.ts`, `namespace.ts`) from copies embedded at the
   end of the script. **After changing those files run
   `node scripts/create-element.mjs --sync-runtime`** – `src/tests/createElement.test.mjs`
   fails otherwise. It adds the `openbridge.css` import to `main.tsx`/Storybook
@@ -106,7 +106,8 @@ stories are not in the npm package; titles come from the
   categories) in a throwaway project **outside `node_modules`** (Vite skips JSX
   transforms there) – e.g. `lib/.sweep`: copy `src`, `scripts`, `.storybook`,
   configs; symlink `node_modules`; use the original template `main.tsx`
-  (`git show 6bb02da:src/main.tsx`); delete the tests – then run tsc, eslint,
+  (`git show 6bb02da:src/main.tsx`, with `minimumRequiredHelioVersion` set to
+  `'26.2.0'`); delete the tests – then run tsc, eslint,
   the build and a Storybook build there. Delete it afterwards (vitest would
   pick up its tests).
 
@@ -126,9 +127,19 @@ Shared code:
 
 Styling: `@oicl/openbridge-webcomponents/dist/openbridge.css` is imported once
 in `src/main.tsx` and injected into `<head>` by `rollup-plugin-import-css`
-(`inject: true`). `.storybook/preview.tsx` imports it the same way. There is no
-theming/palette switching – the default (day) palette is used. Component
-styles use the SDK's `className()` / `cx()` helpers.
+(`inject: true`). `.storybook/preview.tsx` imports it the same way. The default
+(day) palette is used; there is no palette switching. Component styles use the
+SDK's `className()` / `cx()` helpers.
+
+Theming: every element wraps its content in `<OpenBridgeTheme>`
+(`src/utils/OpenBridgeTheme.tsx`). It reads the active HELIO theme with
+`useDesignTokens()` and sets the OpenBridge accent CSS variables
+(`--selected-*`, `--instrument-enhanced-*`, …) on a `display: contents` div;
+they inherit into the components' shadow DOM. The mapping is
+`OPENBRIDGE_TOKEN_MAP`; alert colours are deliberately not mapped. Needs
+`@hmiproject/helio-sdk` ≥ 1.1.0, hence `minimumRequiredHelioVersion: '26.2.0'`
+(the SDK type-checks it). The Storybook decorator applies the SDK's default
+tokens.
 
 `docs/openbridge-compass.md` is the full reference (patterns, pitfalls,
 property tables); `docs/openbridge-azimuth-thruster.md` documents only what
