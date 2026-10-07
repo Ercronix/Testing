@@ -11,7 +11,7 @@ import {
 } from '@hmiproject/helio-sdk';
 import { AdviceType } from '@oicl/openbridge-webcomponents/dist/navigation-instruments/watch/advice.js';
 import { Fragment } from 'react';
-import { useOpenBridgeTheme } from '../utils/OpenBridgeTheme';
+import { OpenBridgeTheme } from '../utils/OpenBridgeTheme';
 import { namespace } from '../namespace';
 import { RadialGauge, type RadialGaugeProps } from '../components/RadialGauge';
 import {
@@ -264,7 +264,6 @@ export const radialGaugeElement = createElement(namespace, {
   }),
 
   Component(p) {
-    useOpenBridgeTheme();
     const renderMode = useRenderMode();
     const interactive = renderMode !== 'PreviewEdit';
 
@@ -358,7 +357,7 @@ export const radialGaugeElement = createElement(namespace, {
     const clickable = onClick.canCall === true && interactive;
 
     return (
-      <Fragment>
+      <OpenBridgeTheme>
         {subscriptions.map((dp, index) => (
           <Fragment key={index}>{dp.render()}</Fragment>
         ))}
@@ -436,7 +435,7 @@ export const radialGaugeElement = createElement(namespace, {
           animateSetpoint={optionalBoolean(p.animateSetpoint, animateSetpointDp) ?? false}
           onClick={clickable ? onClick.call : undefined}
         />
-      </Fragment>
+      </OpenBridgeTheme>
     );
   },
 });

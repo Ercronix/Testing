@@ -4,7 +4,6 @@ import {
   colorLightness,
   OPENBRIDGE_TOKEN_MAP,
   openBridgePalette,
-  openBridgeThemeCss,
   openBridgeThemeVars,
 } from '../utils/OpenBridgeTheme';
 
@@ -13,19 +12,13 @@ describe('openBridgeThemeVars', () => {
     const vars = openBridgeThemeVars({
       controlsPrimaryBackground: 'red',
       controlsPrimaryBackgroundActive: 'darkred',
-    });
+    }) as Record<string, string>;
     expect(vars['--selected-enabled-background-color']).toBe('red');
     expect(vars['--instrument-enhanced-primary-color']).toBe('darkred');
   });
 
   test('leaves out missing tokens, so OpenBridge keeps its own colour', () => {
     expect(openBridgeThemeVars({})).toEqual({});
-  });
-
-  test('declares the variables on every element (HELIO tokens contain var())', () => {
-    expect(openBridgeThemeCss({ '--a': 'red', '--b': 'hsla(var(--h, 193) 50% 50% / 1)' })).toBe(
-      ':root:root:root, :root:root:root * { --a: red; --b: hsla(var(--h, 193) 50% 50% / 1); }',
-    );
   });
 
   test('every mapped token exists in the SDK defaults', () => {

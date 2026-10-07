@@ -130,27 +130,25 @@ in `src/main.tsx` and injected into `<head>` by `rollup-plugin-import-css`
 (`inject: true`). `.storybook/preview.tsx` imports it the same way. Component
 styles use the SDK's `className()` / `cx()` helpers.
 
-Theming: every element calls `useOpenBridgeTheme()` first thing in
-`Component` (`src/utils/OpenBridgeTheme.tsx`). It reads the active HELIO theme
-with `useDesignTokens()` and writes the OpenBridge accent CSS variables
-(`--selected-*`, `--instrument-enhanced-*`, …) into its own
-`<style id="openbridge-helio-theme">` in `<head>` as
-`:root:root:root, :root:root:root * { … }`, which outranks the
-`:root[data-obc-theme]` rules of `openbridge.css` in every palette (the CSS
-file itself is untouched). Declared on every element, not only `<html>`: in
-HELIO the tokens are formulas like `hsla(var(--utilsPrimaryHue, 193) …)`, and
-HELIO sets `--utilsPrimaryHue` on its own container – on `<html>` the formula
-would always resolve to the fallback. Not as inline styles on `<html>`:
-HELIO may replace that `style` attribute, which silently dropped the colours. The mapping is
+Theming: every element wraps its content in `<OpenBridgeTheme>`
+(`src/utils/OpenBridgeTheme.tsx`). It reads the active HELIO theme with
+`useDesignTokens()` and sets the OpenBridge accent CSS variables
+(`--selected-*`, `--instrument-enhanced-*`, …) on a `display: contents` div;
+they inherit into the components' shadow DOM. The mapping is
 `OPENBRIDGE_TOKEN_MAP`; alert colours are deliberately not mapped;
 `src/tests/openBridgeCss.test.mjs` fails if an OpenBridge update renames a
-mapped variable. Light/dark: the tokens have no mode flag, so
-`openBridgePalette` derives it from the lightness of
-`containerLevel1Background` and sets `data-obc-theme` (`day` / `dusk`, see
-`LIGHT_PALETTE`/`DARK_PALETTE`) on `<html>`. Needs `@hmiproject/helio-sdk` ≥
-1.1.0, hence `minimumRequiredHelioVersion: '26.2.0'` (the SDK type-checks it).
-`<OpenBridgeTheme>` is the wrapper form of the hook, used by the Storybook
-decorator (SDK default tokens).
+mapped variable. Keep the colours per element – a global variant (one
+`<style>` for the whole page) was tried and dropped: in HELIO the tokens are
+formulas like `hsla(var(--utilsPrimaryHue, 193) …)` that must be resolved
+inside HELIO's tree, and in HELIO the primary colour stopped following theme
+changes, while the per-element wrapper keeps working. Light/dark:
+the tokens have no mode flag, so `openBridgePalette` derives it from the
+lightness of `containerLevel1Background` and sets `data-obc-theme` (`day` /
+`dusk`, see `LIGHT_PALETTE`/`DARK_PALETTE`) on `<html>` – OpenBridge only
+defines palettes on `:root[data-obc-theme]`, so it cannot be scoped. Needs
+`@hmiproject/helio-sdk` ≥ 1.1.0, hence `minimumRequiredHelioVersion: '26.2.0'`
+(the SDK type-checks it). The Storybook decorator applies the SDK's default
+tokens.
 
 `docs/openbridge-compass.md` is the full reference (patterns, pitfalls,
 property tables); `docs/openbridge-azimuth-thruster.md` documents only what

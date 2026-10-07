@@ -10,7 +10,7 @@ import {
 } from '@hmiproject/helio-sdk';
 import { Fragment } from 'react';
 import { namespace } from '../../namespace';
-import { useOpenBridgeTheme } from '../../utils/OpenBridgeTheme';
+import { OpenBridgeTheme } from '../../utils/OpenBridgeTheme';
 import { Textbox, type TextboxProps } from '../../components/BuildingBlocks/Textbox';
 import { optionalBoolean } from '../../utils/valueMapping';
 
@@ -61,7 +61,6 @@ export const textboxElement = createElement(namespace, {
   }),
 
   Component(p) {
-    useOpenBridgeTheme();
     const renderMode = useRenderMode();
     const interactive = renderMode !== 'PreviewEdit';
 
@@ -75,7 +74,7 @@ export const textboxElement = createElement(namespace, {
     const clickable = onClick.canCall === true && interactive;
 
     return (
-      <Fragment>
+      <OpenBridgeTheme>
         {subscriptions.map((dp, index) => (
           <Fragment key={index}>{dp.render()}</Fragment>
         ))}
@@ -88,7 +87,7 @@ export const textboxElement = createElement(namespace, {
           tabularNums={optionalBoolean(p.tabularNums, tabularNumsDp) ?? false}
           onClick={clickable ? onClick.call : undefined}
         />
-      </Fragment>
+      </OpenBridgeTheme>
     );
   },
 });

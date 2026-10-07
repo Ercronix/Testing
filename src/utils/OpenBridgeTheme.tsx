@@ -1,12 +1,12 @@
 import { useDesignTokens, type DesignTokens } from '@hmiproject/helio-sdk';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, type CSSProperties, type ReactNode } from 'react';
 
 /**
  * OpenBridge CSS variables that follow the active HELIO theme, and the HELIO
  * design token each one takes its value from. CSS variables inherit into the
- * shadow DOM of the OpenBridge components. Alert colours (`--alert-*`,
- * `--critical-*`, `--warning-*`, …) are deliberately not mapped: their meaning
- * is fixed by OpenBridge.
+ * shadow DOM of the OpenBridge components, so setting them on a wrapper is
+ * enough. Alert colours (`--alert-*`, `--critical-*`, `--warning-*`, …) are
+ * deliberately not mapped: their meaning is fixed by OpenBridge.
  */
 export const OPENBRIDGE_TOKEN_MAP: Record<string, keyof DesignTokens> = {
   '--selected-enabled-background-color': 'controlsPrimaryBackground',
@@ -27,13 +27,13 @@ export const OPENBRIDGE_TOKEN_MAP: Record<string, keyof DesignTokens> = {
 };
 
 /** Builds the OpenBridge CSS variables from HELIO design tokens; missing tokens are left out. */
-export function openBridgeThemeVars(tokens: Partial<DesignTokens>): Record<string, string> {
+export function openBridgeThemeVars(tokens: Partial<DesignTokens>): CSSProperties {
   const vars: Record<string, string> = {};
   for (const [variable, token] of Object.entries(OPENBRIDGE_TOKEN_MAP)) {
     const value = tokens[token];
     if (typeof value === 'string' && value !== '') vars[variable] = value;
   }
-  return vars;
+  return vars as CSSProperties;
 }
 
 /** OpenBridge palettes used for light and dark HELIO themes (OpenBridge also has `bright` and `night`). */
@@ -69,56 +69,19 @@ export function openBridgePalette(tokens: Partial<DesignTokens>): string | undef
   return lightness < 0.5 ? DARK_PALETTE : LIGHT_PALETTE;
 }
 
-/** Id of the `<style>` element in `<head>` that holds the theme variables. */
-export const THEME_STYLE_ID = 'openbridge-helio-theme';
-
 /**
- * CSS rule with the theme variables, declared on every element rather than
- * only on `<html>`: HELIO's tokens are formulas such as
- * `hsla(var(--utilsPrimaryHue, 193) …)`, and HELIO sets `--utilsPrimaryHue`
- * on its own container, not on `<html>`. A variable containing `var()` is
- * resolved where it is declared, so on `<html>` it would always use the
- * fallback (HELIO's default colour). Declared on every element, each one
- * resolves it with the HELIO values it inherits – also live when the theme
- * changes. `:root:root:root` outranks the `:root[data-obc-theme="…"]` rules
- * of `openbridge.css` (which declares these variables only on `:root`).
+ * Applies the active HELIO theme to the OpenBridge components inside: the
+ * accent colours (primary colour etc.) on the wrapper – `display: contents`
+ * keeps it out of the layout – and light/dark as the OpenBridge palette on
+ * `<html>` (OpenBridge only defines palettes on `:root[data-obc-theme]`).
  */
-export function openBridgeThemeCss(vars: Record<string, string>): string {
-  const declarations = Object.entries(vars).map(([name, value]) => `${name}: ${value};`);
-  return `:root:root:root, :root:root:root * { ${declarations.join(' ')} }`;
-}
-
-/**
- * Applies the active HELIO theme to every OpenBridge component on the page:
- * the accent colours (primary colour etc.) as CSS variables in our own
- * `<style>` element, and light/dark as the OpenBridge palette
- * (`data-obc-theme` on `<html>`). Only variables are overridden, so
- * `openbridge.css` itself stays as it is. The variables are deliberately not
- * set as inline styles on `<html>`: HELIO may replace that `style` attribute.
- * Call it in every element; they all write the same values.
- */
-export function useOpenBridgeTheme() {
+export function OpenBridgeTheme({ children }: { children: ReactNode }) {
   const tokens = useDesignTokens();
   const palette = openBridgePalette(tokens);
-  const css = openBridgeThemeCss(openBridgeThemeVars(tokens));
 
   useEffect(() => {
     if (palette) document.documentElement.dataset.obcTheme = palette;
   }, [palette]);
 
-  useEffect(() => {
-    let style = document.getElementById(THEME_STYLE_ID);
-    if (!style) {
-      style = document.createElement('style');
-      style.id = THEME_STYLE_ID;
-      document.head.appendChild(style);
-    }
-    if (style.textContent !== css) style.textContent = css;
-  }, [css]);
-}
-
-/** Wrapper form of {@link useOpenBridgeTheme}, e.g. for Storybook decorators. */
-export function OpenBridgeTheme({ children }: { children: ReactNode }) {
-  useOpenBridgeTheme();
-  return <>{children}</>;
+  return <div style={{ display: 'contents', ...openBridgeThemeVars(tokens) }}>{children}</div>;
 }
