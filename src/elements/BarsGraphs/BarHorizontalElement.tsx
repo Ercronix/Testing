@@ -12,7 +12,7 @@ import {
 import { AdviceType } from '@oicl/openbridge-webcomponents/dist/navigation-instruments/watch/advice.js';
 import { Fragment } from 'react';
 import { namespace } from '../../namespace';
-import { OpenBridgeTheme } from '../../utils/OpenBridgeTheme';
+import { useOpenBridgeTheme } from '../../utils/OpenBridgeTheme';
 import { BarHorizontal, type BarHorizontalProps } from '../../components/BarsGraphs/BarHorizontal';
 import {
   buildLinearAdvices,
@@ -356,6 +356,7 @@ export const barHorizontalElement = createElement(namespace, {
   }),
 
   Component(p) {
+    useOpenBridgeTheme();
     const renderMode = useRenderMode();
     const interactive = renderMode !== 'PreviewEdit';
 
@@ -484,7 +485,7 @@ export const barHorizontalElement = createElement(namespace, {
     const clickable = onClick.canCall === true && interactive;
 
     return (
-      <OpenBridgeTheme>
+      <Fragment>
         {subscriptions.map((dp, index) => (
           <Fragment key={index}>{dp.render()}</Fragment>
         ))}
@@ -595,7 +596,7 @@ export const barHorizontalElement = createElement(namespace, {
           }
           onClick={clickable ? onClick.call : undefined}
         />
-      </OpenBridgeTheme>
+      </Fragment>
     );
   },
 });

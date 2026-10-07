@@ -16,7 +16,7 @@ import {
 } from '@oicl/openbridge-webcomponents/dist/navigation-instruments/compass/compass.js';
 import { AdviceType } from '@oicl/openbridge-webcomponents/dist/navigation-instruments/watch/advice.js';
 import { Fragment } from 'react';
-import { OpenBridgeTheme } from '../utils/OpenBridgeTheme';
+import { useOpenBridgeTheme } from '../utils/OpenBridgeTheme';
 import { namespace } from '../namespace';
 import { normalizeAngle } from '../dynamicProperties/angleMath';
 import {
@@ -420,6 +420,7 @@ export const compassElement = createElement(namespace, {
   }),
 
   Component(p) {
+    useOpenBridgeTheme();
     const renderMode = useRenderMode();
 
     const num = { valueType: values.Number() };
@@ -518,7 +519,7 @@ export const compassElement = createElement(namespace, {
     const clickable = onClick.canCall === true && renderMode !== 'PreviewEdit';
 
     return (
-      <OpenBridgeTheme>
+      <Fragment>
         {subscriptions.map((dp, index) => (
           <Fragment key={index}>{dp.render()}</Fragment>
         ))}
@@ -587,7 +588,7 @@ export const compassElement = createElement(namespace, {
           rotDotAnimationFactor={p.rotDotAnimationFactor}
           onClick={clickable ? onClick.call : undefined}
         />
-      </OpenBridgeTheme>
+      </Fragment>
     );
   },
 });

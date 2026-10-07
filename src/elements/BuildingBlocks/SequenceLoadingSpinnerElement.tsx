@@ -10,7 +10,7 @@ import {
 } from '@hmiproject/helio-sdk';
 import { Fragment } from 'react';
 import { namespace } from '../../namespace';
-import { OpenBridgeTheme } from '../../utils/OpenBridgeTheme';
+import { useOpenBridgeTheme } from '../../utils/OpenBridgeTheme';
 import {
   SequenceLoadingSpinner,
   type SequenceLoadingSpinnerProps,
@@ -63,6 +63,7 @@ export const sequenceLoadingSpinnerElement = createElement(namespace, {
   }),
 
   Component(p) {
+    useOpenBridgeTheme();
     const renderMode = useRenderMode();
     const interactive = renderMode !== 'PreviewEdit';
 
@@ -79,7 +80,7 @@ export const sequenceLoadingSpinnerElement = createElement(namespace, {
     const clickable = onClick.canCall === true && interactive;
 
     return (
-      <OpenBridgeTheme>
+      <Fragment>
         {subscriptions.map((dp, index) => (
           <Fragment key={index}>{dp.render()}</Fragment>
         ))}
@@ -92,7 +93,7 @@ export const sequenceLoadingSpinnerElement = createElement(namespace, {
           progressPercent={optionalNumber(p.progressPercent, progressPercentDp) ?? 0}
           onClick={clickable ? onClick.call : undefined}
         />
-      </OpenBridgeTheme>
+      </Fragment>
     );
   },
 });

@@ -130,19 +130,21 @@ in `src/main.tsx` and injected into `<head>` by `rollup-plugin-import-css`
 (`inject: true`). `.storybook/preview.tsx` imports it the same way. Component
 styles use the SDK's `className()` / `cx()` helpers.
 
-Theming: every element wraps its content in `<OpenBridgeTheme>`
-(`src/utils/OpenBridgeTheme.tsx`). It reads the active HELIO theme with
-`useDesignTokens()` and sets the OpenBridge accent CSS variables
-(`--selected-*`, `--instrument-enhanced-*`, …) on a `display: contents` div;
-they inherit into the components' shadow DOM. The mapping is
-`OPENBRIDGE_TOKEN_MAP`; alert colours are deliberately not mapped. Light/dark:
-the tokens have no mode flag, so `openBridgePalette` derives it from the
-lightness of `containerLevel1Background` and sets `data-obc-theme` (`day` /
-`dusk`, see `LIGHT_PALETTE`/`DARK_PALETTE`) on `<html>` – OpenBridge only
-defines palettes on `:root[data-obc-theme]`, so it cannot be scoped. Needs
-`@hmiproject/helio-sdk` ≥ 1.1.0, hence `minimumRequiredHelioVersion: '26.2.0'`
-(the SDK type-checks it). The Storybook decorator applies the SDK's default
-tokens.
+Theming: every element calls `useOpenBridgeTheme()` first thing in
+`Component` (`src/utils/OpenBridgeTheme.tsx`). It reads the active HELIO theme
+with `useDesignTokens()` and writes the OpenBridge accent CSS variables
+(`--selected-*`, `--instrument-enhanced-*`, …) as inline styles on `<html>`,
+which beat the `:root[data-obc-theme]` rules of `openbridge.css` in every
+palette (the CSS file itself is untouched). The mapping is
+`OPENBRIDGE_TOKEN_MAP`; alert colours are deliberately not mapped;
+`src/tests/openBridgeCss.test.mjs` fails if an OpenBridge update renames a
+mapped variable. Light/dark: the tokens have no mode flag, so
+`openBridgePalette` derives it from the lightness of
+`containerLevel1Background` and sets `data-obc-theme` (`day` / `dusk`, see
+`LIGHT_PALETTE`/`DARK_PALETTE`) on `<html>`. Needs `@hmiproject/helio-sdk` ≥
+1.1.0, hence `minimumRequiredHelioVersion: '26.2.0'` (the SDK type-checks it).
+`<OpenBridgeTheme>` is the wrapper form of the hook, used by the Storybook
+decorator (SDK default tokens).
 
 `docs/openbridge-compass.md` is the full reference (patterns, pitfalls,
 property tables); `docs/openbridge-azimuth-thruster.md` documents only what

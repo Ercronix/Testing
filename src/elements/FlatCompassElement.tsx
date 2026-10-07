@@ -10,7 +10,7 @@ import {
   values,
 } from '@hmiproject/helio-sdk';
 import { Fragment } from 'react';
-import { OpenBridgeTheme } from '../utils/OpenBridgeTheme';
+import { useOpenBridgeTheme } from '../utils/OpenBridgeTheme';
 import { namespace } from '../namespace';
 import { FlatCompass, type FlatCompassProps } from '../components/FlatCompass';
 import {
@@ -172,6 +172,7 @@ export const flatCompassElement = createElement(namespace, {
   }),
 
   Component(p) {
+    useOpenBridgeTheme();
     const renderMode = useRenderMode();
     const interactive = renderMode !== 'PreviewEdit';
 
@@ -239,7 +240,7 @@ export const flatCompassElement = createElement(namespace, {
     const clickable = onClick.canCall === true && interactive;
 
     return (
-      <OpenBridgeTheme>
+      <Fragment>
         {subscriptions.map((dp, index) => (
           <Fragment key={index}>{dp.render()}</Fragment>
         ))}
@@ -286,7 +287,7 @@ export const flatCompassElement = createElement(namespace, {
           fractionDigits={optionalNumber(p.fractionDigits, fractionDigitsDp) ?? 0}
           onClick={clickable ? onClick.call : undefined}
         />
-      </OpenBridgeTheme>
+      </Fragment>
     );
   },
 });

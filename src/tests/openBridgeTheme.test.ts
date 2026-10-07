@@ -12,7 +12,7 @@ describe('openBridgeThemeVars', () => {
     const vars = openBridgeThemeVars({
       controlsPrimaryBackground: 'red',
       controlsPrimaryBackgroundActive: 'darkred',
-    }) as Record<string, string>;
+    });
     expect(vars['--selected-enabled-background-color']).toBe('red');
     expect(vars['--instrument-enhanced-primary-color']).toBe('darkred');
   });

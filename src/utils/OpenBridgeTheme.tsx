@@ -1,11 +1,10 @@
 import { useDesignTokens, type DesignTokens } from '@hmiproject/helio-sdk';
-import { useEffect, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 
 /**
  * OpenBridge CSS variables that follow the active HELIO theme, and the HELIO
  * design token each one takes its value from. CSS variables inherit into the
- * shadow DOM of the OpenBridge components, so setting them on a wrapper is
- * enough. Alert colours (`--alert-*`, `--critical-*`, `--warning-*`, …) are
+ * shadow DOM of the OpenBridge components. Alert colours (`--alert-*`, `--critical-*`, `--warning-*`, …) are
  * deliberately not mapped: their meaning is fixed by OpenBridge.
  */
 export const OPENBRIDGE_TOKEN_MAP: Record<string, keyof DesignTokens> = {
@@ -27,13 +26,13 @@ export const OPENBRIDGE_TOKEN_MAP: Record<string, keyof DesignTokens> = {
 };
 
 /** Builds the OpenBridge CSS variables from HELIO design tokens; missing tokens are left out. */
-export function openBridgeThemeVars(tokens: Partial<DesignTokens>): CSSProperties {
+export function openBridgeThemeVars(tokens: Partial<DesignTokens>): Record<string, string> {
   const vars: Record<string, string> = {};
   for (const [variable, token] of Object.entries(OPENBRIDGE_TOKEN_MAP)) {
     const value = tokens[token];
     if (typeof value === 'string' && value !== '') vars[variable] = value;
   }
-  return vars as CSSProperties;
+  return vars;
 }
 
 /** OpenBridge palettes used for light and dark HELIO themes (OpenBridge also has `bright` and `night`). */
@@ -70,18 +69,29 @@ export function openBridgePalette(tokens: Partial<DesignTokens>): string | undef
 }
 
 /**
- * Applies the active HELIO theme to the OpenBridge components inside: the
- * accent colours (primary colour etc.) on the wrapper – `display: contents`
- * keeps it out of the layout – and light/dark as the OpenBridge palette on
- * `<html>` (OpenBridge only defines palettes on `:root[data-obc-theme]`).
+ * Applies the active HELIO theme to every OpenBridge component on the page:
+ * the accent colours (primary colour etc.) as inline CSS variables on `<html>`,
+ * and light/dark as the OpenBridge palette (`data-obc-theme`). Inline styles
+ * beat the `:root[data-obc-theme]` rules of `openbridge.css` in every palette,
+ * and only variables are overridden, so `openbridge.css` itself stays as it is.
+ * Call it in every element; they all write the same values.
  */
-export function OpenBridgeTheme({ children }: { children: ReactNode }) {
+export function useOpenBridgeTheme() {
   const tokens = useDesignTokens();
   const palette = openBridgePalette(tokens);
+  const vars = JSON.stringify(openBridgeThemeVars(tokens));
 
   useEffect(() => {
-    if (palette) document.documentElement.dataset.obcTheme = palette;
-  }, [palette]);
+    const root = document.documentElement;
+    if (palette) root.dataset.obcTheme = palette;
+    for (const [name, value] of Object.entries<string>(JSON.parse(vars))) {
+      root.style.setProperty(name, value);
+    }
+  }, [palette, vars]);
+}
 
-  return <div style={{ display: 'contents', ...openBridgeThemeVars(tokens) }}>{children}</div>;
+/** Wrapper form of {@link useOpenBridgeTheme}, e.g. for Storybook decorators. */
+export function OpenBridgeTheme({ children }: { children: ReactNode }) {
+  useOpenBridgeTheme();
+  return <>{children}</>;
 }

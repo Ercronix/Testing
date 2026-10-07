@@ -10,7 +10,7 @@ import {
 } from '@hmiproject/helio-sdk';
 import { Fragment } from 'react';
 import { namespace } from '../../namespace';
-import { OpenBridgeTheme } from '../../utils/OpenBridgeTheme';
+import { useOpenBridgeTheme } from '../../utils/OpenBridgeTheme';
 import { WatchFlat, type WatchFlatProps } from '../../components/BuildingBlocks/WatchFlat';
 import { optionalBoolean, optionalJson, optionalNumber } from '../../utils/valueMapping';
 
@@ -159,6 +159,7 @@ export const watchFlatElement = createElement(namespace, {
   }),
 
   Component(p) {
+    useOpenBridgeTheme();
     const renderMode = useRenderMode();
     const interactive = renderMode !== 'PreviewEdit';
 
@@ -214,7 +215,7 @@ export const watchFlatElement = createElement(namespace, {
     const clickable = onClick.canCall === true && interactive;
 
     return (
-      <OpenBridgeTheme>
+      <Fragment>
         {subscriptions.map((dp, index) => (
           <Fragment key={index}>{dp.render()}</Fragment>
         ))}
@@ -247,7 +248,7 @@ export const watchFlatElement = createElement(namespace, {
           }
           onClick={clickable ? onClick.call : undefined}
         />
-      </OpenBridgeTheme>
+      </Fragment>
     );
   },
 });
