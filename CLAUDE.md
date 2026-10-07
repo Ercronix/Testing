@@ -133,9 +133,11 @@ styles use the SDK's `className()` / `cx()` helpers.
 Theming: every element calls `useOpenBridgeTheme()` first thing in
 `Component` (`src/utils/OpenBridgeTheme.tsx`). It reads the active HELIO theme
 with `useDesignTokens()` and writes the OpenBridge accent CSS variables
-(`--selected-*`, `--instrument-enhanced-*`, …) as inline styles on `<html>`,
-which beat the `:root[data-obc-theme]` rules of `openbridge.css` in every
-palette (the CSS file itself is untouched). The mapping is
+(`--selected-*`, `--instrument-enhanced-*`, …) into its own
+`<style id="openbridge-helio-theme">` in `<head>` as `:root:root:root { … }`,
+which outranks the `:root[data-obc-theme]` rules of `openbridge.css` in every
+palette (the CSS file itself is untouched). Not as inline styles on `<html>`:
+HELIO may replace that `style` attribute, which silently dropped the colours. The mapping is
 `OPENBRIDGE_TOKEN_MAP`; alert colours are deliberately not mapped;
 `src/tests/openBridgeCss.test.mjs` fails if an OpenBridge update renames a
 mapped variable. Light/dark: the tokens have no mode flag, so

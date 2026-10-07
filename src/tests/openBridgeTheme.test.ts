@@ -4,6 +4,7 @@ import {
   colorLightness,
   OPENBRIDGE_TOKEN_MAP,
   openBridgePalette,
+  openBridgeThemeCss,
   openBridgeThemeVars,
 } from '../utils/OpenBridgeTheme';
 
@@ -19,6 +20,12 @@ describe('openBridgeThemeVars', () => {
 
   test('leaves out missing tokens, so OpenBridge keeps its own colour', () => {
     expect(openBridgeThemeVars({})).toEqual({});
+  });
+
+  test('builds one rule that outranks :root[data-obc-theme]', () => {
+    expect(openBridgeThemeCss({ '--a': 'red', '--b': 'hsla(0 0% 0% / 1)' })).toBe(
+      ':root:root:root { --a: red; --b: hsla(0 0% 0% / 1); }',
+    );
   });
 
   test('every mapped token exists in the SDK defaults', () => {

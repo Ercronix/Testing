@@ -4,8 +4,9 @@ import { useEffect, type ReactNode } from 'react';
 /**
  * OpenBridge CSS variables that follow the active HELIO theme, and the HELIO
  * design token each one takes its value from. CSS variables inherit into the
- * shadow DOM of the OpenBridge components. Alert colours (`--alert-*`, `--critical-*`, `--warning-*`, …) are
- * deliberately not mapped: their meaning is fixed by OpenBridge.
+ * shadow DOM of the OpenBridge components. Alert colours (`--alert-*`,
+ * `--critical-*`, `--warning-*`, …) are deliberately not mapped: their meaning
+ * is fixed by OpenBridge.
  */
 export const OPENBRIDGE_TOKEN_MAP: Record<string, keyof DesignTokens> = {
   '--selected-enabled-background-color': 'controlsPrimaryBackground',
@@ -68,26 +69,46 @@ export function openBridgePalette(tokens: Partial<DesignTokens>): string | undef
   return lightness < 0.5 ? DARK_PALETTE : LIGHT_PALETTE;
 }
 
+/** Id of the `<style>` element in `<head>` that holds the theme variables. */
+export const THEME_STYLE_ID = 'openbridge-helio-theme';
+
+/**
+ * CSS rule with the theme variables. `:root:root:root` is more specific than
+ * the `:root[data-obc-theme="…"]` rules of `openbridge.css`, so it wins in
+ * every palette, whatever the order of the stylesheets.
+ */
+export function openBridgeThemeCss(vars: Record<string, string>): string {
+  const declarations = Object.entries(vars).map(([name, value]) => `${name}: ${value};`);
+  return `:root:root:root { ${declarations.join(' ')} }`;
+}
+
 /**
  * Applies the active HELIO theme to every OpenBridge component on the page:
- * the accent colours (primary colour etc.) as inline CSS variables on `<html>`,
- * and light/dark as the OpenBridge palette (`data-obc-theme`). Inline styles
- * beat the `:root[data-obc-theme]` rules of `openbridge.css` in every palette,
- * and only variables are overridden, so `openbridge.css` itself stays as it is.
+ * the accent colours (primary colour etc.) as CSS variables in our own
+ * `<style>` element, and light/dark as the OpenBridge palette
+ * (`data-obc-theme` on `<html>`). Only variables are overridden, so
+ * `openbridge.css` itself stays as it is. The variables are deliberately not
+ * set as inline styles on `<html>`: HELIO may replace that `style` attribute.
  * Call it in every element; they all write the same values.
  */
 export function useOpenBridgeTheme() {
   const tokens = useDesignTokens();
   const palette = openBridgePalette(tokens);
-  const vars = JSON.stringify(openBridgeThemeVars(tokens));
+  const css = openBridgeThemeCss(openBridgeThemeVars(tokens));
 
   useEffect(() => {
-    const root = document.documentElement;
-    if (palette) root.dataset.obcTheme = palette;
-    for (const [name, value] of Object.entries<string>(JSON.parse(vars))) {
-      root.style.setProperty(name, value);
+    if (palette) document.documentElement.dataset.obcTheme = palette;
+  }, [palette]);
+
+  useEffect(() => {
+    let style = document.getElementById(THEME_STYLE_ID);
+    if (!style) {
+      style = document.createElement('style');
+      style.id = THEME_STYLE_ID;
+      document.head.appendChild(style);
     }
-  }, [palette, vars]);
+    if (style.textContent !== css) style.textContent = css;
+  }, [css]);
 }
 
 /** Wrapper form of {@link useOpenBridgeTheme}, e.g. for Storybook decorators. */
