@@ -73,13 +73,19 @@ export function openBridgePalette(tokens: Partial<DesignTokens>): string | undef
 export const THEME_STYLE_ID = 'openbridge-helio-theme';
 
 /**
- * CSS rule with the theme variables. `:root:root:root` is more specific than
- * the `:root[data-obc-theme="…"]` rules of `openbridge.css`, so it wins in
- * every palette, whatever the order of the stylesheets.
+ * CSS rule with the theme variables, declared on every element rather than
+ * only on `<html>`: HELIO's tokens are formulas such as
+ * `hsla(var(--utilsPrimaryHue, 193) …)`, and HELIO sets `--utilsPrimaryHue`
+ * on its own container, not on `<html>`. A variable containing `var()` is
+ * resolved where it is declared, so on `<html>` it would always use the
+ * fallback (HELIO's default colour). Declared on every element, each one
+ * resolves it with the HELIO values it inherits – also live when the theme
+ * changes. `:root:root:root` outranks the `:root[data-obc-theme="…"]` rules
+ * of `openbridge.css` (which declares these variables only on `:root`).
  */
 export function openBridgeThemeCss(vars: Record<string, string>): string {
   const declarations = Object.entries(vars).map(([name, value]) => `${name}: ${value};`);
-  return `:root:root:root { ${declarations.join(' ')} }`;
+  return `:root:root:root, :root:root:root * { ${declarations.join(' ')} }`;
 }
 
 /**

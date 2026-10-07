@@ -134,9 +134,13 @@ Theming: every element calls `useOpenBridgeTheme()` first thing in
 `Component` (`src/utils/OpenBridgeTheme.tsx`). It reads the active HELIO theme
 with `useDesignTokens()` and writes the OpenBridge accent CSS variables
 (`--selected-*`, `--instrument-enhanced-*`, …) into its own
-`<style id="openbridge-helio-theme">` in `<head>` as `:root:root:root { … }`,
-which outranks the `:root[data-obc-theme]` rules of `openbridge.css` in every
-palette (the CSS file itself is untouched). Not as inline styles on `<html>`:
+`<style id="openbridge-helio-theme">` in `<head>` as
+`:root:root:root, :root:root:root * { … }`, which outranks the
+`:root[data-obc-theme]` rules of `openbridge.css` in every palette (the CSS
+file itself is untouched). Declared on every element, not only `<html>`: in
+HELIO the tokens are formulas like `hsla(var(--utilsPrimaryHue, 193) …)`, and
+HELIO sets `--utilsPrimaryHue` on its own container – on `<html>` the formula
+would always resolve to the fallback. Not as inline styles on `<html>`:
 HELIO may replace that `style` attribute, which silently dropped the colours. The mapping is
 `OPENBRIDGE_TOKEN_MAP`; alert colours are deliberately not mapped;
 `src/tests/openBridgeCss.test.mjs` fails if an OpenBridge update renames a

@@ -22,9 +22,9 @@ describe('openBridgeThemeVars', () => {
     expect(openBridgeThemeVars({})).toEqual({});
   });
 
-  test('builds one rule that outranks :root[data-obc-theme]', () => {
-    expect(openBridgeThemeCss({ '--a': 'red', '--b': 'hsla(0 0% 0% / 1)' })).toBe(
-      ':root:root:root { --a: red; --b: hsla(0 0% 0% / 1); }',
+  test('declares the variables on every element (HELIO tokens contain var())', () => {
+    expect(openBridgeThemeCss({ '--a': 'red', '--b': 'hsla(var(--h, 193) 50% 50% / 1)' })).toBe(
+      ':root:root:root, :root:root:root * { --a: red; --b: hsla(var(--h, 193) 50% 50% / 1); }',
     );
   });
 
