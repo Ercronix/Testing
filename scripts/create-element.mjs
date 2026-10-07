@@ -1,12 +1,13 @@
 /**
  * Generates a HELIO element for an OpenBridge web component (instruments,
- * indicators and automation symbols):
+ * indicators, automation symbols and building blocks):
  *
- *   <src>/components/<Name>.tsx           presentational component
- *   <src>/components/<Name>.stories.tsx   Storybook stories (if Storybook is installed)
- *   <src>/elements/<Name>Element.tsx      HELIO element (props schema + DP resolution)
- *   docs/openbridge-<tag>.md              property reference
- *   <src>/main.tsx                        registration
+ *   <src>/components/<Category>/<Name>.tsx
+ *       presentational component
+ *   <src>/elements/<Category>/<Name>Element.tsx
+ *       HELIO element (props schema + DP resolution)
+ *   <src>/main.tsx
+ *       registration
  *
  * Properties, types, defaults and events come from the OpenBridge
  * `custom-elements.json` manifest and the `.d.ts` files of
@@ -20,9 +21,9 @@
  *
  * Usage:
  *   node scripts/create-element.mjs <component> [options]
- *   node scripts/create-element.mjs --list [instruments|indicators|automation]
+ *   node scripts/create-element.mjs --list [instruments|indicators|automation|building-blocks|bars-graphs]
  *
- *   <component>            OpenBridge tag without `obc-`, e.g. `gauge-radial`, `pump`
+ *   <component>            OpenBridge tag without `obc-`, e.g. `gauge-radial`, `pump`, `bar-vertical`
  *   --name "Radial Gauge"  display name (default: derived from the tag)
  *   --primary a,b          main values: required DPs that drive the `loading` state
  *                          (default: first of value/heading/angle/… that exists)
@@ -58,6 +59,7 @@ const SYNCED_RUNTIME_FILES = [
   'utils/AutoSizer.tsx',
   'utils/valueMapping.ts',
   'dynamicProperties/angleMath.ts',
+  'utils/OpenBridgeTheme.tsx',
 ];
 
 // ── CLI ──────────────────────────────────────────────────────────────────
@@ -132,7 +134,14 @@ function requirePackage(name) {
 
 const pkgDir = requirePackage('@oicl/openbridge-webcomponents');
 const reactPkgDir = requirePackage('@oicl/openbridge-webcomponents-react');
-requirePackage('@hmiproject/helio-sdk');
+const sdkDir = requirePackage('@hmiproject/helio-sdk');
+// OpenBridgeTheme (wraps every element) needs useDesignTokens, added in SDK 1.1.0 / HELIO 26.2.
+if (!readFileSync(resolve(sdkDir, 'lib/main.d.ts'), 'utf8').includes('useDesignTokens')) {
+  warn(
+    '@hmiproject/helio-sdk has no useDesignTokens – run: npm install @hmiproject/helio-sdk@^1.1.0 ' +
+      "and set minimumRequiredHelioVersion: '26.2.0'.",
+  );
+}
 const manifest = JSON.parse(readFileSync(resolve(pkgDir, 'custom-elements.json'), 'utf8'));
 
 // ── Component catalog ────────────────────────────────────────────────────
@@ -140,30 +149,73 @@ const manifest = JSON.parse(readFileSync(resolve(pkgDir, 'custom-elements.json')
 const CATEGORIES = {
   instruments: {
     label: 'Instruments',
+    directory: 'Instruments',
     helioCategory: 'OpenBridge',
-    storyPrefix: 'OpenBridge',
     docsPath: (tag) => `instruments-${tag}`,
   },
   indicators: {
     label: 'Indicators',
+    directory: 'Indicators',
     helioCategory: 'OpenBridge Indicators',
-    storyPrefix: 'OpenBridge/Indicators',
     docsPath: (tag, area) => (area === 'automation' ? undefined : `indicators-${tag}`),
   },
   automation: {
     label: 'Automation',
+    directory: 'Automation',
     helioCategory: 'OpenBridge Automation',
-    storyPrefix: 'OpenBridge/Automation',
     docsPath: () => undefined,
+  },
+  'building-blocks': {
+    label: 'Building Blocks',
+    directory: 'BuildingBlocks',
+    helioCategory: 'OpenBridge Building Blocks',
+    docsPath: (tag) => `building-blocks-${tag}`,
+  },
+  'bars-graphs': {
+    label: 'Bars and Graphs',
+    directory: 'BarsGraphs',
+    helioCategory: 'OpenBridge Bars and Graphs',
+    docsPath: (tag) => `bars-and-graphs-${tag}`,
   },
 };
 
-/** Same grouping as the OpenBridge Storybook. */
+/**
+ * Components whose OpenBridge Storybook group differs from their source
+ * folder (taken from the story titles; the stories are not in the npm
+ * package). `null` = not generated: `alert-list` only lays out slotted alert
+ * items, `circular-progress` has no story and is only used inside other
+ * components.
+ */
+const STORYBOOK_CATEGORY = {
+  'obc-watch': 'building-blocks',
+  'obc-watch-flat': 'building-blocks',
+  'obc-textbox': 'building-blocks',
+  'obc-sequence-loading-spinner': 'building-blocks',
+  'obc-automation-button-readout-stack': 'building-blocks',
+  'obc-bar-horizontal': 'bars-graphs',
+  'obc-bar-vertical': 'bars-graphs',
+  'obc-graph-mini': 'bars-graphs',
+  'obc-indicator-graph': 'bars-graphs',
+  'obc-tunnel-thruster': 'indicators',
+  'obc-sequence-connector': 'automation',
+  'obc-sequence-step': 'automation',
+  'obc-sequence-toolbar': 'automation',
+  'obc-alert-list': null,
+  'obc-circular-progress': null,
+};
+
+/**
+ * Same grouping as the OpenBridge Storybook, except that the automation
+ * `indicator-*` symbols (Storybook: "Automation/Indicators") are indicators.
+ */
 function categoryOf(mod, tag) {
+  if (tag in STORYBOOK_CATEGORY) return STORYBOOK_CATEGORY[tag] ?? undefined;
   const area = mod.path.split('/')[1];
   if (area === 'navigation-instruments')
     return /-indicator$/.test(tag) ? 'indicators' : 'instruments';
   if (area === 'automation') return /^obc-indicator-/.test(tag) ? 'indicators' : 'automation';
+  if (area === 'building-blocks') return 'building-blocks';
+  if (area === 'bars-graphs') return 'bars-graphs';
   return undefined;
 }
 
@@ -202,7 +254,15 @@ if (!found) fail(`No OpenBridge component <${tag}> found. Run with --list to see
 
 const { mod, declaration, category } = found;
 const categoryInfo = CATEGORIES[category];
-const area = mod.path.split('/')[1];
+
+if (!categoryInfo) {
+  fail(`No generator category configuration found for "${category}".`);
+}
+
+const categoryDirectory = categoryInfo.directory;
+const componentsDirectory = `${srcDir}/components/${categoryDirectory}`;
+const elementsDirectory = `${srcDir}/elements/${categoryDirectory}`;
+
 const shortTag = tag.replace(/^obc-/, '');
 const modulePath = mod.path.replace(/^src\//, '').replace(/\.ts$/, '');
 const distDts = resolve(pkgDir, 'dist', `${modulePath}.d.ts`);
@@ -357,17 +417,290 @@ function memberFile(field) {
     : distDts;
 }
 
+/**
+ * Infers valid string options for a string property from arrays declared in
+ * the component's compiled JavaScript module.
+ *
+ * Example:
+ *
+ *   var gaugeBarIndicatorDirections = ['vertical', 'horizontal'];
+ *   var gaugeBarIndicatorTypes = ['fill', 'tinted'];
+ *
+ * For the member `direction`, this returns:
+ *
+ *   ['vertical', 'horizontal']
+ *
+ * For the member `type`, this returns:
+ *
+ *   ['fill', 'tinted']
+ */
+function inferStringOptionsFromModule(memberName, file = distDts) {
+  const jsFile = file.endsWith('.d.ts') ? `${file.slice(0, -5)}.js` : file;
+
+  if (!existsSync(jsFile)) {
+    return undefined;
+  }
+
+  const jsText = readFileSync(jsFile, 'utf8');
+
+  const pluralMemberName = memberName.endsWith('s')
+    ? memberName
+    : memberName.endsWith('y')
+      ? `${memberName.slice(0, -1)}ies`
+      : `${memberName}s`;
+
+  const normalizedMemberName = memberName.toLowerCase();
+  const normalizedPluralMemberName = pluralMemberName.toLowerCase();
+
+  /**
+   * Reads quoted string values from an array body.
+   *
+   * Example input:
+   *
+   *   "vertical", "horizontal"
+   *
+   * Example output:
+   *
+   *   ["vertical", "horizontal"]
+   */
+  function parseQuotedStrings(text) {
+    const values = [];
+
+    let activeQuote;
+    let currentValue = '';
+    let escaped = false;
+
+    for (const character of text) {
+      if (activeQuote === undefined) {
+        if (character === '"' || character === "'") {
+          activeQuote = character;
+          currentValue = '';
+        }
+
+        continue;
+      }
+
+      if (escaped) {
+        currentValue += character;
+        escaped = false;
+        continue;
+      }
+
+      if (character === '\\') {
+        escaped = true;
+        continue;
+      }
+
+      if (character === activeQuote) {
+        values.push(currentValue);
+        activeQuote = undefined;
+        currentValue = '';
+        continue;
+      }
+
+      currentValue += character;
+    }
+
+    return values;
+  }
+
+  /**
+   * Finds the closing bracket belonging to an opening array bracket.
+   * Quoted brackets are ignored.
+   */
+  function findClosingBracket(text, openingIndex) {
+    let depth = 0;
+    let activeQuote;
+    let escaped = false;
+
+    for (let index = openingIndex; index < text.length; index += 1) {
+      const character = text[index];
+
+      if (activeQuote !== undefined) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+
+        if (character === '\\') {
+          escaped = true;
+          continue;
+        }
+
+        if (character === activeQuote) {
+          activeQuote = undefined;
+        }
+
+        continue;
+      }
+
+      if (character === '"' || character === "'") {
+        activeQuote = character;
+        continue;
+      }
+
+      if (character === '[') {
+        depth += 1;
+        continue;
+      }
+
+      if (character === ']') {
+        depth -= 1;
+
+        if (depth === 0) {
+          return index;
+        }
+      }
+    }
+
+    return -1;
+  }
+
+  /**
+   * Collects simple variable declarations from the compiled module.
+   *
+   * Supported examples:
+   *
+   *   var options = [...]
+   *   let options = [...]
+   *   const options = [...]
+   */
+  function findArrayDeclarations(text) {
+    const declarations = [];
+    const declarationPrefixes = ['var ', 'let ', 'const '];
+
+    for (const prefix of declarationPrefixes) {
+      let searchIndex = 0;
+
+      while (searchIndex < text.length) {
+        const declarationIndex = text.indexOf(prefix, searchIndex);
+
+        if (declarationIndex < 0) {
+          break;
+        }
+
+        const nameStart = declarationIndex + prefix.length;
+        let nameEnd = nameStart;
+
+        while (nameEnd < text.length) {
+          const character = text[nameEnd];
+          const isIdentifierCharacter =
+            (character >= 'a' && character <= 'z') ||
+            (character >= 'A' && character <= 'Z') ||
+            (character >= '0' && character <= '9') ||
+            character === '_' ||
+            character === '$';
+
+          if (!isIdentifierCharacter) {
+            break;
+          }
+
+          nameEnd += 1;
+        }
+
+        const variableName = text.slice(nameStart, nameEnd);
+
+        if (!variableName) {
+          searchIndex = nameStart;
+          continue;
+        }
+
+        const equalsIndex = text.indexOf('=', nameEnd);
+
+        if (equalsIndex < 0) {
+          break;
+        }
+
+        const statementEnd = text.indexOf(';', nameEnd);
+
+        if (statementEnd >= 0 && equalsIndex > statementEnd) {
+          searchIndex = nameEnd;
+          continue;
+        }
+
+        const arrayStart = text.indexOf('[', equalsIndex);
+
+        if (arrayStart < 0 || (statementEnd >= 0 && arrayStart > statementEnd)) {
+          searchIndex = nameEnd;
+          continue;
+        }
+
+        const arrayEnd = findClosingBracket(text, arrayStart);
+
+        if (arrayEnd < 0) {
+          searchIndex = arrayStart + 1;
+          continue;
+        }
+
+        declarations.push({
+          name: variableName,
+          body: text.slice(arrayStart + 1, arrayEnd),
+        });
+
+        searchIndex = arrayEnd + 1;
+      }
+    }
+
+    return declarations;
+  }
+
+  const declarations = findArrayDeclarations(jsText);
+
+  const matchingDeclarations = declarations
+    .filter(({ name }) => {
+      const normalizedName = name.toLowerCase();
+
+      return (
+        normalizedName.endsWith(normalizedMemberName) ||
+        normalizedName.endsWith(normalizedPluralMemberName)
+      );
+    })
+    .sort((left, right) => left.name.length - right.name.length);
+
+  for (const declaration of matchingDeclarations) {
+    const values = parseQuotedStrings(declaration.body);
+    const uniqueValues = [...new Set(values)];
+
+    if (uniqueValues.length >= 2) {
+      return uniqueValues;
+    }
+  }
+
+  return undefined;
+}
+
 // ── Member classification ────────────────────────────────────────────────
 
 /**
  * IDE defaults that differ from the component default because HELIO places
  * elements in a layout box rather than on a diagram.
  */
-const DEFAULT_OVERRIDES = {
-  // `point` wraps automation symbols in a 0×0 px anchor, so they overflow the
-  // HELIO box; `button` sizes the host to the full button incl. readouts.
-  positioning: 'button',
+const COMPONENT_DEFAULT_OVERRIDES = {
+  'obc-gauge-bar-indicator': {
+    direction: 'vertical',
+    type: 'fill',
+  },
 };
+const DEFAULT_OVERRIDES = {
+  positioning: 'button',
+
+  direction: 'vertical',
+  type: 'fill',
+};
+/**
+ * Layout per component, where the defaults do not fit:
+ * - `shape` replaces the default shape (see `--shape`).
+ * - `sizeProps` feeds the measured container size into numeric props instead
+ *   of exposing them in HELIO, e.g. the bars draw their scale `width`/`height`
+ *   px long and would otherwise ignore the size of the HELIO box.
+ */
+const COMPONENT_LAYOUT = {
+  'obc-bar-horizontal': { shape: 'fill', sizeProps: { width: 'width' } },
+  'obc-bar-vertical': { shape: 'fill', sizeProps: { height: 'height' } },
+  'obc-watch-flat': { shape: 'fill', sizeProps: { width: 'width', height: 'height' } },
+};
+const layout = COMPONENT_LAYOUT[tag] ?? {};
+const sizePropNames = new Set(Object.values(layout.sizeProps ?? {}));
 
 const SKIPPED_NAMES = new Set(['faceDiameter', 'touching', 'loading', 'newSetpoint', 'ariaLabel']);
 const PRIMARY_CANDIDATES = [
@@ -483,11 +816,13 @@ for (const field of declaration.members ?? []) {
   const description = (field.description ?? '').replace(/\s+/g, ' ').trim();
 
   if (!typeText) continue; // methods / getters without type
+  if (sizePropNames.has(field.name)) continue;
   if (SKIPPED_NAMES.has(field.name) || /^new[A-Z]\w*Setpoint$/.test(field.name)) continue;
   if (/^departing/.test(field.name)) continue;
   if (field.deprecated || /^\*\*deprecated/i.test(description)) continue;
 
   const base = stripNullish(typeText);
+  const file = memberFile(field);
   const member = { name: field.name, base, description };
 
   if (field.name === 'state' && base === 'InstrumentState')
@@ -495,19 +830,43 @@ for (const field of declaration.members ?? []) {
   else if (field.name === 'priority' && base === 'Priority')
     Object.assign(member, { kind: 'priority' });
   else {
-    const result = classify(base, memberFile(field));
-    if (result.skip) {
-      skipped.push({ name: field.name, type: typeText, reason: result.skip });
-      continue;
+    const inferredOptions =
+      base === 'string' ? inferStringOptionsFromModule(field.name, file) : undefined;
+
+    if (inferredOptions) {
+      Object.assign(member, {
+        kind: 'enum',
+        resolved: {
+          kind: 'enum',
+          numeric: false,
+          values: inferredOptions.map((value) => ({
+            key: value,
+            value,
+          })),
+        },
+      });
+    } else {
+      const result = classify(base, file);
+
+      if (result.skip) {
+        skipped.push({
+          name: field.name,
+          type: typeText,
+          reason: result.skip,
+        });
+        continue;
+      }
+
+      Object.assign(member, result);
     }
-    Object.assign(member, result);
   }
   if (member.kind === 'enum' || member.kind === 'enumList') {
     member.options = member.resolved.values.map((v) => (member.resolved.numeric ? v.key : v.value));
   }
 
   member.default = parseDefault(field.default, member.resolved);
-  const defaultOverride = DEFAULT_OVERRIDES[member.name];
+  const defaultOverride =
+    COMPONENT_DEFAULT_OVERRIDES[tag]?.[member.name] ?? DEFAULT_OVERRIDES[member.name];
   if (defaultOverride !== undefined && member.options?.includes(defaultOverride)) {
     member.default = defaultOverride;
     member.defaultOverridden = true;
@@ -583,6 +942,7 @@ for (const name of primaryNames) {
 const supportsFaceDiameter = declaration.members?.some((m) => m.name === 'faceDiameter');
 const shape =
   args.shape ??
+  layout.shape ??
   (supportsFaceDiameter ? 'square' : category === 'instruments' ? 'fill' : 'intrinsic');
 if (!['square', 'fill', 'intrinsic'].includes(shape)) {
   fail('--shape must be "square", "fill" or "intrinsic"');
@@ -703,7 +1063,11 @@ const DP_KIND = {
   boolean: 'dpBoolean',
   string: 'dpString',
   primitive: 'dpPrimitive',
-  list: 'dpAny',
+
+  // Primitive arrays are entered as text in HELIO and parsed by valueMapping.
+  // This avoids HELIO offering number/string/Boolean as the DP source type.
+  list: 'dpString',
+
   json: 'dpAny',
   enumList: 'dpString',
 };
@@ -884,12 +1248,6 @@ const elementDescription =
     ? `${classDescription.replace(/\.$/, '')} (OpenBridge design system).`
     : `${displayName} (OpenBridge design system).`;
 
-const sizeDoc = {
-  square: 'The component is kept square and scaled to the largest size that fits.',
-  fill: 'The component fills the available space.',
-  intrinsic: 'The component keeps its natural size and is centered in the available space.',
-}[shape];
-
 const eventProps = events.map((e) => e.prop);
 const propsTypeParts = [
   componentKeys.length && `Partial<Pick<${obcClass}Element, ${componentKeys.map(q).join(' | ')}>>`,
@@ -911,7 +1269,12 @@ const componentBody =
         ${shape === 'square' ? 'const size = Math.min(width, height);\n        ' : ''}return (
           <${obcClass}
             style={{ display: 'block', ${shape === 'square' ? 'width: size, height: size' : 'width, height'} }}
-            onClick={onClick}
+            onClick={onClick}${Object.entries(layout.sizeProps ?? {})
+              .map(
+                ([dimension, prop]) =>
+                  `\n            ${prop}={${shape === 'square' ? 'size' : dimension}}`,
+              )
+              .join('')}
             {...definedProps(props)}
           />
         );
@@ -925,7 +1288,7 @@ const componentSource = `${
     : ''
 }import { ${obcClass} } from '${reactImportPath}';
 import { className, cx } from '@hmiproject/helio-sdk';
-${eventProps.length ? "import type { ComponentProps } from 'react';\n" : ''}${shape === 'intrinsic' ? '' : "import { AutoSizer } from '../utils/AutoSizer';\n"}import { definedProps } from '../utils/valueMapping';
+${eventProps.length ? "import type { ComponentProps } from 'react';\n" : ''}${shape === 'intrinsic' ? '' : "import { AutoSizer } from '../../utils/AutoSizer';\n"}import { definedProps } from '../../utils/valueMapping';
 
 export type ${propsType} = ${propsTypeParts.join(' & ')};
 
@@ -946,13 +1309,6 @@ ${
   clickable: className({ cursor: 'pointer' }),
 };
 
-/**
- * Presentational wrapper around OpenBridge's \`<${tag}>\`. Receives fully
- * resolved values; all HELIO dynamic property handling happens in the element.
- * ${sizeDoc}
- *
- * ${GENERATED_MARKER}.
- */
 export function ${Name}({ onClick, ...props }: ${propsType}) {
 ${componentBody}
 }
@@ -1029,7 +1385,19 @@ function valueExpression(m) {
     case 'primitive':
       return `${use('optionalPrimitive')}(${p}, ${dp}) as ${cast(m)}`;
     case 'list':
-      return `${use('optionalList')}(${p}, ${dp}, ${q(m.itemType)}) as ${cast(m)}`;
+      if (m.itemType === 'number') {
+        return `${use('optionalNumberList')}(${p}, ${dp}) as ${cast(m)}`;
+      }
+
+      if (m.itemType === 'string') {
+        return `${use('optionalStringList')}(${p}, ${dp}) as ${cast(m)}`;
+      }
+
+      if (m.itemType === 'boolean') {
+        return `${use('optionalBooleanList')}(${p}, ${dp}) as ${cast(m)}`;
+      }
+
+      return `${use('optionalPrimitiveList')}(${p}, ${dp}) as ${cast(m)}`;
     case 'json':
       return `${use('optionalJson')}(${p}, ${dp}) as ${cast(m)}`;
     case 'enum':
@@ -1122,19 +1490,11 @@ const usesPropsType = componentAttributes.includes(`${propsType}[`);
 const actionVars = ['onClick', ...events.map((e) => e.actionVar)];
 
 const elementSource = `import { ${sdkImports.join(', ')} } from '@hmiproject/helio-sdk';
-${has('advice') ? "import { AdviceType } from '@oicl/openbridge-webcomponents/dist/navigation-instruments/watch/advice.js';\n" : ''}import { Fragment } from 'react';
-import { namespace } from '../namespace';
-import { ${Name}${usesPropsType ? `, type ${propsType}` : ''} } from '../components/${Name}';
+${has('advice') ? "import { AdviceType } from '@oicl/openbridge-webcomponents/dist/navigation-instruments/watch/advice.js';\n" : ''}${dpProps.length ? "import { Fragment } from 'react';\n" : ''}import { namespace } from '../../namespace';
+import { OpenBridgeTheme } from '../../utils/OpenBridgeTheme';
+import { ${Name}${usesPropsType ? `, type ${propsType}` : ''} } from '../../components/${categoryDirectory}/${Name}';
 __HELPERS__
-/**
- * OpenBridge ${displayName.toLowerCase()} (\`<${tag}>\`) as a HELIO Control.
- *
- * ${GENERATED_MARKER} from the OpenBridge custom elements manifest.${
-   skipped.length
-     ? `\n *\n * Not generated (add manually if needed):\n${skipped.map((s) => ` * - \`${s.name}\` (${s.type}) – ${s.reason}`).join('\n')}`
-     : ''
- }
- */
+
 export const ${elementVar} = createElement(namespace, {
   name: ${q(`OpenBridge ${displayName}`)},
   description: ${q(elementDescription)},
@@ -1186,7 +1546,7 @@ ${primaryReads}
     const clickable = onClick.canCall === true && interactive;
 
     return (
-      <Fragment>
+      <OpenBridgeTheme>
 ${
   dpProps.length
     ? `        {subscriptions.map((dp, index) => (
@@ -1200,178 +1560,15 @@ ${
 ${componentAttributes}
           onClick={clickable ? onClick.call : undefined}
         />
-      </Fragment>
+      </OpenBridgeTheme>
     );
   },
 });
 `.replace('__HELPERS__', () =>
   usedHelpers.size
-    ? `import { ${[...usedHelpers].sort().join(', ')} } from '../utils/valueMapping';\n`
+    ? `import { ${[...usedHelpers].sort().join(', ')} } from '../../utils/valueMapping';\n`
     : '',
 );
-
-// Stories
-
-const storyArgs = [];
-if (has('state')) storyArgs.push(`state: 'active' as ${propsType}['state']`);
-for (const m of members.filter((x) => x.defaultOverridden)) {
-  storyArgs.push(`${m.name}: ${literal(m.default)} as ${cast(m)}`);
-}
-for (const n of primaryNames) {
-  const m = members.find((x) => x.name === n);
-  storyArgs.push(`${n}: ${m.default && m.default !== 0 ? literal(m.default) : 42}`);
-}
-
-const argTypes = members
-  .filter(
-    (m) =>
-      (m.kind === 'enum' && !m.resolved.numeric) || m.kind === 'state' || m.kind === 'priority',
-  )
-  .map((m) => {
-    const options =
-      m.kind === 'state'
-        ? ['active', 'loading', 'off']
-        : m.kind === 'priority'
-          ? ['regular', 'enhanced']
-          : m.options;
-    return `    ${m.name}: { control: 'select', options: [${options.map(q).join(', ')}] },`;
-  })
-  .concat(primaryNames.map((n) => `    ${n}: { control: 'number' },`));
-
-const storySize = {
-  square: [[420, 420], [640, 240], 'WideContainer'],
-  fill: [[640, 160], [320, 96], 'SmallContainer'],
-  intrinsic: [[320, 200], [160, 120], 'SmallContainer'],
-}[shape];
-
-const storiesSource = `// ${GENERATED_MARKER}.
-import type { Meta, StoryObj } from '@storybook/react-vite';
-import { ${Name}${storyArgs.length ? `, type ${propsType}` : ''} } from './${Name}';
-
-const meta = {
-  title: ${q(`${categoryInfo.storyPrefix}/${displayName}`)},
-  component: ${Name},
-  // The container size comes from \`parameters.size\`, so stories can show how
-  // the component behaves in differently sized containers.
-  parameters: { size: { width: ${storySize[0][0]}, height: ${storySize[0][1]} } },
-  decorators: [
-    (Story, { parameters }) => (
-      <div style={{ ...parameters.size, outline: '1px dashed #999' }}>
-        <Story />
-      </div>
-    ),
-  ],
-  argTypes: {
-${argTypes.join('\n')}
-  },
-  args: {
-${storyArgs.map((a) => `    ${a},`).join('\n')}
-  }${storyArgs.length ? ` satisfies ${propsType}` : ''},
-} satisfies Meta<typeof ${Name}>;
-
-export default meta;
-
-type Story = StoryObj<typeof meta>;
-
-export const Default: Story = {};
-
-export const ${storySize[2]}: Story = {
-  parameters: { size: { width: ${storySize[1][0]}, height: ${storySize[1][1]} } },
-};
-${
-  has('state')
-    ? `
-export const Loading: Story = {
-  args: { state: 'loading' as ${propsType}['state'] },
-};
-`
-    : ''
-}`;
-
-// Docs
-
-const KIND_LABEL = {
-  dpNumber: 'DP NumericValue',
-  dpBoolean: 'DP Boolean',
-  dpString: 'DP String',
-  dpPrimitive: 'DP PrimitiveValue',
-  dpAny: 'DP (any)',
-  dpTarget: 'DP (write target)',
-  enum: 'Enum',
-};
-
-const docsPath = categoryInfo.docsPath(shortTag, area);
-const docsLink = docsPath
-  ? `<https://openbridge-storybook.web.app/?path=/docs/${docsPath}--docs>`
-  : `<https://openbridge-storybook.web.app/> (search for "${shortTag}")`;
-
-const docsSource = `# OpenBridge ${displayName} – HELIO Extension Element
-
-${GENERATED_MARKER} from \`<${tag}>\` (${categoryInfo.label.toLowerCase()}).
-
-- OpenBridge docs: ${docsLink}
-- Typings: \`node_modules/@oicl/openbridge-webcomponents/dist/${modulePath}.d.ts\`
-
-## Files
-
-\`\`\`
-${srcDir}/components/${Name}.tsx
-${srcDir}/elements/${Name}Element.tsx      (export \`${elementVar}\`)
-\`\`\`
-
-Sizing: **${shape}** – ${sizeDoc.toLowerCase().replace(/\.$/, '')}.
-${
-  has('state')
-    ? primaryNames.length
-      ? `Main value${primaryNames.length > 1 ? 's' : ''}: ${primaryNames.map((n) => `\`${n}\``).join(', ')} – required; the component shows \`loading\` while ${primaryNames.length > 1 ? 'any of them is' : 'it is'} unreadable.`
-      : 'The state follows "Instrument off" / "Instrument loading".'
-    : primaryNames.length
-      ? `Main value${primaryNames.length > 1 ? 's' : ''}: ${primaryNames.map((n) => `\`${n}\``).join(', ')} (required).`
-      : ''
-}
-
-Unset optional props are **not passed** to the web component, so its own
-defaults apply. List props accept an array or a separated string
-(\`"1, 2, 3"\`); JSON props accept an object/array or a JSON string.
-${
-  events.length
-    ? `
-## Events
-
-Each event runs its HELIO action. Event values are first written to the
-configured "write to" dynamic properties (e.g. a writable data variable).
-
-| Event | Action | Written values |
-|---|---|---|
-${events.map((e) => `| ${e.words} | \`${e.prop}\` | ${e.targets.map((t) => `\`${t.path.join('.') || 'value'}\` → \`${t.key}\``).join(', ') || '–'} |`).join('\n')}
-`
-    : ''
-}
-## Properties
-
-| Key | IDE label | Kind | Group | obc prop |
-|---|---|---|---|---|
-${schemaProps
-  .map(
-    (p) =>
-      `| \`${p.key}\` | ${p.label.replace(/\|/g, '\\|')} | ${KIND_LABEL[p.kind]}${p.optional ? ' opt' : `, default \`${formatDefault(p.defaultValue)}\``} | ${groups.get(p.group)?.label ?? p.group} | ${p.member ? `\`${p.member.name}\`` : p.kind === 'dpTarget' ? 'event value' : p.key.startsWith('is') ? '`state`' : 'advice zone'} |`,
-  )
-  .join('\n')}
-| \`onClick\` | On click | Action opt | Interaction | click |
-${events.map((e) => `| \`${e.prop}\` | ${e.label} | Action opt | Interaction | ${e.words} event |`).join('\n')}
-${
-  skipped.length
-    ? `
-## Not generated
-
-These \`<${tag}>\` properties cannot come from HELIO values:
-
-${skipped.map((s) => `- \`${s.name}\` (\`${s.type}\`) – ${s.reason}`).join('\n')}
-`
-    : ''
-}`;
-
-// ── Checks on the target project ─────────────────────────────────────────
 
 function readIfExists(path) {
   return existsSync(path) ? readFileSync(path, 'utf8') : undefined;
@@ -1381,6 +1578,7 @@ function readIfExists(path) {
 const neededRuntime = {
   'utils/valueMapping.ts': ['definedProps', ...usedHelpers],
   ...(shape === 'intrinsic' ? {} : { 'utils/AutoSizer.tsx': ['AutoSizer'] }),
+  'utils/OpenBridgeTheme.tsx': ['OpenBridgeTheme'],
   'namespace.ts': ['namespace'],
 };
 
@@ -1405,8 +1603,6 @@ for (const [file, exportsNeeded] of Object.entries(neededRuntime)) {
   }
 }
 
-const storybookInstalled = existsSync(inRoot('node_modules/@storybook/react-vite'));
-const writeStories = !args['no-stories'] && storybookInstalled;
 const cssImport = "import '@oicl/openbridge-webcomponents/dist/openbridge.css';";
 
 const packageJson = JSON.parse(readFileSync(inRoot('package.json'), 'utf8'));
@@ -1431,17 +1627,15 @@ if (rollupConfig !== undefined) {
 if (!deps['@oicl/openbridge-webcomponents'] || !deps['@oicl/openbridge-webcomponents-react']) {
   warn('OpenBridge packages are installed but not listed in package.json dependencies.');
 }
-if (!args['no-stories'] && !storybookInstalled) {
-  warn('Storybook (@storybook/react-vite) is not installed – no stories were generated.');
-}
 
 // ── Write files ──────────────────────────────────────────────────────────
 
+const componentFile = `${componentsDirectory}/${Name}.tsx`;
+const elementFile = `${elementsDirectory}/${Name}Element.tsx`;
+
 const files = [
-  [`${srcDir}/components/${Name}.tsx`, componentSource],
-  writeStories && [`${srcDir}/components/${Name}.stories.tsx`, storiesSource],
-  [`${srcDir}/elements/${Name}Element.tsx`, elementSource],
-  !args['no-docs'] && [`docs/openbridge-${shortTag}.md`, docsSource],
+  [componentFile, componentSource],
+  [elementFile, elementSource],
 ].filter(Boolean);
 
 if (args['dry-run']) {
@@ -1504,16 +1698,27 @@ const written = files.map(([file]) => file);
 if (!args['no-register']) {
   const mainPath = inRoot(mainFile);
   let main = readIfExists(mainPath);
+  const elementImportPath = `./elements/${categoryDirectory}/${Name}Element`;
+
   if (main === undefined) {
-    warn(`${mainFile} not found – register ${elementVar} manually.`);
+    warn(
+      `${mainFile} not found – register ${elementVar} manually from ` + `'${elementImportPath}'.`,
+    );
   } else {
     let changed = false;
-    if (!main.includes(`/elements/${Name}Element'`)) {
+
+    const hasElementImport =
+      main.includes(`from '${elementImportPath}'`) || main.includes(`from "${elementImportPath}"`);
+
+    if (!hasElementImport) {
       const updated = appendToArray(main, 'elements', elementVar);
       if (updated === undefined) {
-        warn(`No "elements: [...]" found in ${mainFile} – register ${elementVar} manually.`);
+        warn(
+          `No "elements: [...]" found in ${mainFile} – register ` +
+            `${elementVar} manually from '${elementImportPath}'.`,
+        );
       } else {
-        const importLine = `import { ${elementVar} } from './elements/${Name}Element';\n`;
+        const importLine = `import { ${elementVar} } from '${elementImportPath}';\n`;
         const imports = [...updated.matchAll(/^import .*;\n/gm)];
         const lastImport = imports.pop();
         const insertAt = lastImport ? lastImport.index + lastImport[0].length : 0;
@@ -1532,17 +1737,6 @@ if (!args['no-register']) {
       writeFileSync(mainPath, main);
       written.push(mainFile);
     }
-  }
-
-  const previewPath = ['.storybook/preview.tsx', '.storybook/preview.ts']
-    .map((f) => inRoot(f))
-    .find((f) => existsSync(f));
-  if (writeStories && previewPath && !readFileSync(previewPath, 'utf8').includes(cssImport)) {
-    const preview = readFileSync(previewPath, 'utf8');
-    const at = preview.search(/^import .*;\n/m);
-    const pos = at < 0 ? 0 : preview.indexOf('\n', at) + 1;
-    writeFileSync(previewPath, preview.slice(0, pos) + cssImport + '\n' + preview.slice(pos));
-    written.push(relative(root, previewPath));
   }
 }
 
@@ -1591,8 +1785,9 @@ export const namespace = createNamespace({
 function syncedRuntimeFiles() {
   return {
     "utils/AutoSizer.tsx": "import { className, cx } from '@hmiproject/helio-sdk';\nimport { useEffect, useRef, useState, type ReactNode } from 'react';\n\nexport type Size = { width: number; height: number };\n\ntype AutoSizerProps = {\n  className?: string;\n  children: (size: Size) => ReactNode;\n};\n\nconst classNames = {\n  root: className({\n    width: '100%',\n    height: '100%',\n    display: 'flex',\n    alignItems: 'center',\n    justifyContent: 'center',\n    overflow: 'hidden',\n  }),\n};\n\n/**\n * Fills its parent, measures the available space and renders its children\n * with that size. Children are centered and only rendered once the size is\n * known (both dimensions > 0).\n */\nexport function AutoSizer({ className, children }: AutoSizerProps) {\n  const ref = useRef<HTMLDivElement>(null);\n  const [size, setSize] = useState<Size>({ width: 0, height: 0 });\n\n  useEffect(() => {\n    const element = ref.current;\n    if (!element) return;\n\n    const observer = new ResizeObserver(([entry]) => {\n      const { width, height } = entry.contentRect;\n      setSize((previous) =>\n        previous.width === width && previous.height === height ? previous : { width, height },\n      );\n    });\n    observer.observe(element);\n    return () => observer.disconnect();\n  }, []);\n\n  return (\n    <div ref={ref} className={cx(classNames.root, className)}>\n      {size.width > 0 && size.height > 0 && children(size)}\n    </div>\n  );\n}\n",
-    "utils/valueMapping.ts": "import type { LinearAdvice } from '@oicl/openbridge-webcomponents/dist/navigation-instruments/thruster/advice.js';\nimport { InstrumentState } from '@oicl/openbridge-webcomponents/dist/navigation-instruments/types.js';\nimport type {\n  AdviceType,\n  AngleAdvice,\n} from '@oicl/openbridge-webcomponents/dist/navigation-instruments/watch/advice.js';\nimport { normalizeAngle } from '../dynamicProperties/angleMath';\n\n// Helpers shared by all instrument elements that translate loosely typed HELIO\n// values (dynamic properties can deliver anything a PLC/OPC UA variable\n// produces) into the strongly typed inputs of the OpenBridge components.\n\n/** Returns a finite number, or `undefined` for anything else (incl. numeric strings that are empty). */\nexport function toFiniteNumber(value: unknown): number | undefined {\n  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;\n  if (typeof value === 'string' && value.trim() !== '') {\n    const parsed = Number(value);\n    return Number.isFinite(parsed) ? parsed : undefined;\n  }\n  return undefined;\n}\n\n/** Interprets booleans, numbers (0 = false) and strings like \"true\"/\"on\"/\"1\". */\nexport function toBoolean(value: unknown): boolean | undefined {\n  if (typeof value === 'boolean') return value;\n  if (typeof value === 'number') return Number.isFinite(value) ? value !== 0 : undefined;\n  if (typeof value === 'string') {\n    const normalized = value.trim().toLowerCase();\n    if (['true', '1', 'on', 'yes'].includes(normalized)) return true;\n    if (['false', '0', 'off', 'no'].includes(normalized)) return false;\n  }\n  return undefined;\n}\n\n/** Lowercases and strips spaces, `_` and `-`, for lenient string matching. */\nexport function normalizeKey(value: string): string {\n  return value.replace(/[\\s_-]/g, '').toLowerCase();\n}\n\ntype ReadableValue = { value: unknown; canRead: boolean | undefined };\n\n/**\n * Reads an optional dynamic property as number. Props that are not configured\n * (`ref === undefined`) or not readable must not contribute values.\n */\nexport function optionalNumber(ref: unknown, dp: ReadableValue): number | undefined {\n  return ref === undefined || dp.canRead === false ? undefined : toFiniteNumber(dp.value);\n}\n\n/** Boolean counterpart of {@link optionalNumber}. */\nexport function optionalBoolean(ref: unknown, dp: ReadableValue): boolean | undefined {\n  return ref === undefined || dp.canRead === false ? undefined : toBoolean(dp.value);\n}\n\nexport type InstrumentStateInput = {\n  /** Explicit \"instrument off\" signal, e.g. sensor powered down. */\n  isOff: boolean | undefined;\n  /** Explicit \"loading\" signal. */\n  isLoading: boolean | undefined;\n  /** Whether the instrument's main value is currently readable/available. */\n  valueAvailable: boolean;\n};\n\n/**\n * Derives the instrument state. Explicit signals win; otherwise the instrument\n * shows `loading` while its main value has no value yet (e.g. connection pending).\n */\nexport function deriveInstrumentState(input: InstrumentStateInput): InstrumentState {\n  if (input.isOff) return InstrumentState.off;\n  if (input.isLoading) return InstrumentState.loading;\n  if (!input.valueAvailable) return InstrumentState.loading;\n  return InstrumentState.active;\n}\n\nexport type AdviceZoneInput = {\n  type: AdviceType;\n  enabled: boolean | undefined;\n  min: number | undefined;\n  max: number | undefined;\n  hinted: boolean | undefined;\n};\n\nfunction isCompleteZone(\n  zone: AdviceZoneInput,\n): zone is AdviceZoneInput & { min: number; max: number } {\n  return zone.enabled !== false && zone.min !== undefined && zone.max !== undefined;\n}\n\n/** Builds angle advice arcs; incomplete or disabled zones are skipped. */\nexport function buildAngleAdvices(zones: AdviceZoneInput[]): AngleAdvice[] {\n  return zones.filter(isCompleteZone).map((zone) => ({\n    type: zone.type,\n    minAngle: normalizeAngle(zone.min),\n    maxAngle: normalizeAngle(zone.max),\n    hinted: zone.hinted ?? false,\n  }));\n}\n\n/** Builds linear (e.g. thrust) advice ranges; incomplete or disabled zones are skipped. */\nexport function buildLinearAdvices(zones: AdviceZoneInput[]): LinearAdvice[] {\n  return zones.filter(isCompleteZone).map((zone) => ({\n    type: zone.type,\n    min: Math.min(zone.min, zone.max),\n    max: Math.max(zone.min, zone.max),\n    hinted: zone.hinted ?? false,\n  }));\n}\n\n/** String counterpart of {@link optionalNumber}; numbers are converted to strings. */\nexport function optionalString(ref: unknown, dp: ReadableValue): string | undefined {\n  if (ref === undefined || dp.canRead === false) return undefined;\n  if (typeof dp.value === 'string') return dp.value;\n  if (typeof dp.value === 'number' && Number.isFinite(dp.value)) return String(dp.value);\n  return undefined;\n}\n\n/**\n * Parses a comma/space separated list like `\"hdg, cog\"` into the allowed\n * values (case-insensitive, deduplicated, unknown entries dropped).\n */\nexport function parseEnumList<T extends string>(value: unknown, allowed: readonly T[]): T[] {\n  if (typeof value !== 'string') return [];\n  const parts = value\n    .split(/[\\s,;|]+/)\n    .map((part) => allowed.find((option) => option.toLowerCase() === part.trim().toLowerCase()))\n    .filter((part): part is T => part !== undefined);\n  return [...new Set(parts)];\n}\n\n/**\n * Drops `undefined` entries. The OpenBridge React wrappers assign every passed\n * prop to the element, so passing `undefined` would override the component's\n * own default – leaving the prop out keeps it.\n */\nexport function definedProps<T extends object>(props: T): Partial<T> {\n  return Object.fromEntries(\n    Object.entries(props).filter(([, value]) => value !== undefined),\n  ) as Partial<T>;\n}\n\n/** Reads an optional dynamic property as string, number or boolean, unchanged. */\nexport function optionalPrimitive(\n  ref: unknown,\n  dp: ReadableValue,\n): string | number | boolean | undefined {\n  if (ref === undefined || dp.canRead === false) return undefined;\n  const { value } = dp;\n  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;\n  return typeof value === 'string' || typeof value === 'boolean' ? value : undefined;\n}\n\nexport type ListItemType = 'number' | 'string' | 'boolean' | 'primitive';\n\nfunction toListItem(value: unknown, type: ListItemType): string | number | boolean | undefined {\n  if (type === 'number') return toFiniteNumber(value);\n  if (type === 'boolean') return toBoolean(value);\n  if (type === 'string') return value === undefined || value === null ? undefined : String(value);\n  return typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number'\n    ? value\n    : undefined;\n}\n\n/**\n * Reads an optional dynamic property as list. Accepts an array value or a\n * separated string (`\"1, 2; 3\"`; number/boolean lists also split on spaces).\n * Entries that cannot be converted are dropped.\n */\nexport function optionalList(\n  ref: unknown,\n  dp: ReadableValue,\n  type: ListItemType,\n): Array<string | number | boolean> | undefined {\n  if (ref === undefined || dp.canRead === false) return undefined;\n  const { value } = dp;\n  const parts = Array.isArray(value)\n    ? value\n    : typeof value === 'string'\n      ? value\n          .split(type === 'number' || type === 'boolean' ? /[\\s,;|]+/ : /[,;|]/)\n          .map((part) => part.trim())\n          .filter((part) => part !== '')\n      : undefined;\n  return parts\n    ?.map((part) => toListItem(part, type))\n    .filter((part): part is string | number | boolean => part !== undefined);\n}\n\n/**\n * Reads an optional dynamic property holding structured data: non-string\n * values (objects, arrays, booleans, numbers) are used as they are, strings are\n * parsed as JSON. Invalid JSON is ignored.\n */\nexport function optionalJson(ref: unknown, dp: ReadableValue): unknown {\n  if (ref === undefined || dp.canRead === false) return undefined;\n  const { value } = dp;\n  if (typeof value !== 'string') return value ?? undefined;\n  if (value.trim() === '') return undefined;\n  try {\n    return JSON.parse(value);\n  } catch {\n    return undefined;\n  }\n}\n\ntype WritableValue = { canWrite: boolean | undefined; setValue?(nextValue: unknown): void };\n\n/**\n * Writes a value to an optional dynamic property (e.g. an event payload into a\n * data variable). Does nothing if the prop is not configured, not writable or\n * the value is missing.\n */\nexport function writeValue(ref: unknown, dp: WritableValue, value: unknown): void {\n  if (ref === undefined || value === undefined || dp.canWrite === false) return;\n  dp.setValue?.(value);\n}\n",
+    "utils/valueMapping.ts": "import type { LinearAdvice } from '@oicl/openbridge-webcomponents/dist/navigation-instruments/thruster/advice.js';\nimport { InstrumentState } from '@oicl/openbridge-webcomponents/dist/navigation-instruments/types.js';\nimport type {\n  AdviceType,\n  AngleAdvice,\n} from '@oicl/openbridge-webcomponents/dist/navigation-instruments/watch/advice.js';\nimport { normalizeAngle } from '../dynamicProperties/angleMath';\n\n// Helpers shared by all instrument elements that translate loosely typed HELIO\n// values (dynamic properties can deliver anything a PLC/OPC UA variable\n// produces) into the strongly typed inputs of the OpenBridge components.\n\n/** Returns a finite number, or `undefined` for anything else (incl. numeric strings that are empty). */\nexport function toFiniteNumber(value: unknown): number | undefined {\n  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;\n  if (typeof value === 'string' && value.trim() !== '') {\n    const parsed = Number(value);\n    return Number.isFinite(parsed) ? parsed : undefined;\n  }\n  return undefined;\n}\n\n/** Interprets booleans, numbers (0 = false) and strings like \"true\"/\"on\"/\"1\". */\nexport function toBoolean(value: unknown): boolean | undefined {\n  if (typeof value === 'boolean') return value;\n  if (typeof value === 'number') return Number.isFinite(value) ? value !== 0 : undefined;\n  if (typeof value === 'string') {\n    const normalized = value.trim().toLowerCase();\n    if (['true', '1', 'on', 'yes'].includes(normalized)) return true;\n    if (['false', '0', 'off', 'no'].includes(normalized)) return false;\n  }\n  return undefined;\n}\n\n/** Lowercases and strips spaces, `_` and `-`, for lenient string matching. */\nexport function normalizeKey(value: string): string {\n  return value.replace(/[\\s_-]/g, '').toLowerCase();\n}\n\ntype ReadableValue = { value: unknown; canRead: boolean | undefined };\n\n/**\n * Reads an optional dynamic property as number. Props that are not configured\n * (`ref === undefined`) or not readable must not contribute values.\n */\nexport function optionalNumber(ref: unknown, dp: ReadableValue): number | undefined {\n  return ref === undefined || dp.canRead === false ? undefined : toFiniteNumber(dp.value);\n}\n\n/** Boolean counterpart of {@link optionalNumber}. */\nexport function optionalBoolean(ref: unknown, dp: ReadableValue): boolean | undefined {\n  return ref === undefined || dp.canRead === false ? undefined : toBoolean(dp.value);\n}\n\nexport type InstrumentStateInput = {\n  /** Explicit \"instrument off\" signal, e.g. sensor powered down. */\n  isOff: boolean | undefined;\n  /** Explicit \"loading\" signal. */\n  isLoading: boolean | undefined;\n  /** Whether the instrument's main value is currently readable/available. */\n  valueAvailable: boolean;\n};\n\n/**\n * Derives the instrument state. Explicit signals win; otherwise the instrument\n * shows `loading` while its main value has no value yet (e.g. connection pending).\n */\nexport function deriveInstrumentState(input: InstrumentStateInput): InstrumentState {\n  if (input.isOff) return InstrumentState.off;\n  if (input.isLoading) return InstrumentState.loading;\n  if (!input.valueAvailable) return InstrumentState.loading;\n  return InstrumentState.active;\n}\n\nexport type AdviceZoneInput = {\n  type: AdviceType;\n  enabled: boolean | undefined;\n  min: number | undefined;\n  max: number | undefined;\n  hinted: boolean | undefined;\n};\n\nfunction isCompleteZone(\n  zone: AdviceZoneInput,\n): zone is AdviceZoneInput & { min: number; max: number } {\n  return zone.enabled !== false && zone.min !== undefined && zone.max !== undefined;\n}\n\n/** Builds angle advice arcs; incomplete or disabled zones are skipped. */\nexport function buildAngleAdvices(zones: AdviceZoneInput[]): AngleAdvice[] {\n  return zones.filter(isCompleteZone).map((zone) => ({\n    type: zone.type,\n    minAngle: normalizeAngle(zone.min),\n    maxAngle: normalizeAngle(zone.max),\n    hinted: zone.hinted ?? false,\n  }));\n}\n\n/** Builds linear (e.g. thrust) advice ranges; incomplete or disabled zones are skipped. */\nexport function buildLinearAdvices(zones: AdviceZoneInput[]): LinearAdvice[] {\n  return zones.filter(isCompleteZone).map((zone) => ({\n    type: zone.type,\n    min: Math.min(zone.min, zone.max),\n    max: Math.max(zone.min, zone.max),\n    hinted: zone.hinted ?? false,\n  }));\n}\n\n/** String counterpart of {@link optionalNumber}; numbers are converted to strings. */\nexport function optionalString(ref: unknown, dp: ReadableValue): string | undefined {\n  if (ref === undefined || dp.canRead === false) return undefined;\n  if (typeof dp.value === 'string') return dp.value;\n  if (typeof dp.value === 'number' && Number.isFinite(dp.value)) return String(dp.value);\n  return undefined;\n}\n\n/**\n * Parses a comma/space separated list like `\"hdg, cog\"` into the allowed\n * values (case-insensitive, deduplicated, unknown entries dropped).\n */\nexport function parseEnumList<T extends string>(value: unknown, allowed: readonly T[]): T[] {\n  if (typeof value !== 'string') return [];\n  const parts = value\n    .split(/[\\s,;|]+/)\n    .map((part) => allowed.find((option) => option.toLowerCase() === part.trim().toLowerCase()))\n    .filter((part): part is T => part !== undefined);\n  return [...new Set(parts)];\n}\n\n/**\n * Drops `undefined` entries. The OpenBridge React wrappers assign every passed\n * prop to the element, so passing `undefined` would override the component's\n * own default – leaving the prop out keeps it.\n */\nexport function definedProps<T extends object>(props: T): Partial<T> {\n  return Object.fromEntries(\n    Object.entries(props).filter(([, value]) => value !== undefined),\n  ) as Partial<T>;\n}\n\n/** Reads an optional dynamic property as string, number or boolean, unchanged. */\nexport function optionalPrimitive(\n  ref: unknown,\n  dp: ReadableValue,\n): string | number | boolean | undefined {\n  if (ref === undefined || dp.canRead === false) return undefined;\n  const { value } = dp;\n  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;\n  return typeof value === 'string' || typeof value === 'boolean' ? value : undefined;\n}\n\nexport type ListItemType = 'number' | 'string' | 'boolean' | 'primitive';\n\nfunction toListItem(value: unknown, type: ListItemType): string | number | boolean | undefined {\n  if (type === 'number') return toFiniteNumber(value);\n  if (type === 'boolean') return toBoolean(value);\n  if (type === 'string') return value === undefined || value === null ? undefined : String(value);\n  return typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number'\n    ? value\n    : undefined;\n}\n\n/**\n * Reads an optional dynamic property as list. Accepts an array value or a\n * separated string (`\"1, 2; 3\"`; number/boolean lists also split on spaces).\n * Entries that cannot be converted are dropped.\n */\nexport function optionalList(\n  ref: unknown,\n  dp: ReadableValue,\n  type: ListItemType,\n): Array<string | number | boolean> | undefined {\n  if (ref === undefined || dp.canRead === false) return undefined;\n  const { value } = dp;\n  const parts = Array.isArray(value)\n    ? value\n    : typeof value === 'string'\n      ? value\n          .split(type === 'number' || type === 'boolean' ? /[\\s,;|]+/ : /[,;|]/)\n          .map((part) => part.trim())\n          .filter((part) => part !== '')\n      : undefined;\n  return parts\n    ?.map((part) => toListItem(part, type))\n    .filter((part): part is string | number | boolean => part !== undefined);\n}\n\n/**\n * Reads an optional dynamic property holding structured data: non-string\n * values (objects, arrays, booleans, numbers) are used as they are, strings are\n * parsed as JSON. Invalid JSON is ignored.\n */\nexport function optionalJson(ref: unknown, dp: ReadableValue): unknown {\n  if (ref === undefined || dp.canRead === false) return undefined;\n  const { value } = dp;\n  if (typeof value !== 'string') return value ?? undefined;\n  if (value.trim() === '') return undefined;\n  try {\n    return JSON.parse(value);\n  } catch {\n    return undefined;\n  }\n}\n\ntype WritableValue = { canWrite: boolean | undefined; setValue?(nextValue: unknown): void };\n\n/**\n * Writes a value to an optional dynamic property (e.g. an event payload into a\n * data variable). Does nothing if the prop is not configured, not writable or\n * the value is missing.\n */\nexport function writeValue(ref: unknown, dp: WritableValue, value: unknown): void {\n  if (ref === undefined || value === undefined || dp.canWrite === false) return;\n  dp.setValue?.(value);\n}\n\n/**\n * Returns entries from a HELIO string-list property.\n *\n * Accepted formats:\n *\n * [0.1, 0.2, 0.3]\n * 0.1, 0.2, 0.3\n * 0.1; 0.2; 0.3\n * 0.1 0.2 0.3\n *\n * JSON arrays are handled first. If JSON parsing fails, the value is treated\n * as a comma, semicolon, pipe, or whitespace-separated list.\n */\nfunction parseListInput(ref: unknown, dp: ReadableValue): unknown[] | undefined {\n  if (ref === undefined || dp.canRead === false) {\n    return undefined;\n  }\n\n  const { value } = dp;\n\n  // Kept for compatibility with runtimes that can already provide arrays.\n  if (Array.isArray(value)) {\n    return value;\n  }\n\n  if (typeof value !== 'string') {\n    return undefined;\n  }\n\n  const trimmed = value.trim();\n\n  if (trimmed === '') {\n    return undefined;\n  }\n\n  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {\n    try {\n      const parsed: unknown = JSON.parse(trimmed);\n\n      if (Array.isArray(parsed)) {\n        return parsed;\n      }\n    } catch {\n      // Continue with the lenient separated-string parser below.\n    }\n  }\n\n  const content = trimmed.startsWith('[') && trimmed.endsWith(']') ? trimmed.slice(1, -1) : trimmed;\n\n  return content\n    .split(/[\\s,;|]+/)\n    .map((entry) => entry.trim())\n    .filter((entry) => entry !== '');\n}\n\n/**\n * Reads a string DynamicProperty as a list of finite numbers.\n *\n * Invalid entries are omitted. OpenBridge components remain responsible for\n * clamping values to their supported ranges.\n */\nexport function optionalNumberList(ref: unknown, dp: ReadableValue): number[] | undefined {\n  const parts = parseListInput(ref, dp);\n\n  if (!parts) {\n    return undefined;\n  }\n\n  const result = parts.map(toFiniteNumber).filter((value): value is number => value !== undefined);\n\n  return result.length > 0 ? result : undefined;\n}\n\n/** Reads a string DynamicProperty as a list of strings. */\nexport function optionalStringList(ref: unknown, dp: ReadableValue): string[] | undefined {\n  const parts = parseListInput(ref, dp);\n\n  if (!parts) {\n    return undefined;\n  }\n\n  const result = parts\n    .filter((value) => value !== undefined && value !== null)\n    .map((value) => String(value).trim())\n    .filter((value) => value !== '');\n\n  return result.length > 0 ? result : undefined;\n}\n\n/** Reads a string DynamicProperty as a list of Booleans. */\nexport function optionalBooleanList(ref: unknown, dp: ReadableValue): boolean[] | undefined {\n  const parts = parseListInput(ref, dp);\n\n  if (!parts) {\n    return undefined;\n  }\n\n  const result = parts.map(toBoolean).filter((value): value is boolean => value !== undefined);\n\n  return result.length > 0 ? result : undefined;\n}\n\n/**\n * Reads a string DynamicProperty as a primitive list.\n *\n * JSON arrays preserve primitive item types. A separated string produces\n * string entries because there is no reliable way to infer the intended type.\n */\nexport function optionalPrimitiveList(\n  ref: unknown,\n  dp: ReadableValue,\n): Array<string | number | boolean> | undefined {\n  const parts = parseListInput(ref, dp);\n\n  if (!parts) {\n    return undefined;\n  }\n\n  const result = parts.filter(\n    (value): value is string | number | boolean =>\n      typeof value === 'string' ||\n      typeof value === 'boolean' ||\n      (typeof value === 'number' && Number.isFinite(value)),\n  );\n\n  return result.length > 0 ? result : undefined;\n}\n",
     "dynamicProperties/angleMath.ts": "/** Wraps any angle into the range [0, 360). */\nexport function normalizeAngle(degrees: number): number {\n  return ((degrees % 360) + 360) % 360;\n}\n\nexport type AngleUnit = 'degrees' | 'radians' | 'mils' | 'gradians';\n\n/** Degrees per one unit of the given angle unit (NATO mils: 6400 per turn). */\nconst DEGREES_PER_UNIT: Record<AngleUnit, number> = {\n  degrees: 1,\n  radians: 180 / Math.PI,\n  mils: 360 / 6400,\n  gradians: 360 / 400,\n};\n\nexport type AngleConversionOptions = {\n  unit: AngleUnit;\n  offsetDegrees: number;\n  normalize: boolean;\n};\n\nexport function convertAngle(value: number, options: AngleConversionOptions): number {\n  const degrees = value * DEGREES_PER_UNIT[options.unit] + options.offsetDegrees;\n  return options.normalize ? normalizeAngle(degrees) : degrees;\n}\n\nexport function invertAngleConversion(degrees: number, options: AngleConversionOptions): number {\n  return (degrees - options.offsetDegrees) / DEGREES_PER_UNIT[options.unit];\n}\n\nconst CARDINAL_16 = [\n  'N',\n  'NNE',\n  'NE',\n  'ENE',\n  'E',\n  'ESE',\n  'SE',\n  'SSE',\n  'S',\n  'SSW',\n  'SW',\n  'WSW',\n  'W',\n  'WNW',\n  'NW',\n  'NNW',\n] as const;\n\n/** Converts an angle to a 4-, 8- or 16-point compass rose name. */\nexport function toCardinalDirection(degrees: number, points: 4 | 8 | 16 = 16): string {\n  const step = 16 / points;\n  const index = Math.round(normalizeAngle(degrees) / (360 / points)) % points;\n  return CARDINAL_16[index * step];\n}\n",
+    "utils/OpenBridgeTheme.tsx": "import { useDesignTokens, type DesignTokens } from '@hmiproject/helio-sdk';\nimport { useEffect, type CSSProperties, type ReactNode } from 'react';\n\n/**\n * OpenBridge CSS variables that follow the active HELIO theme, and the HELIO\n * design token each one takes its value from. CSS variables inherit into the\n * shadow DOM of the OpenBridge components, so setting them on a wrapper is\n * enough. Alert colours (`--alert-*`, `--critical-*`, `--warning-*`, …) are\n * deliberately not mapped: their meaning is fixed by OpenBridge.\n */\nexport const OPENBRIDGE_TOKEN_MAP: Record<string, keyof DesignTokens> = {\n  '--selected-enabled-background-color': 'controlsPrimaryBackground',\n  '--selected-focused-background-color': 'controlsPrimaryBackground',\n  '--selected-hover-background-color': 'controlsPrimaryBackgroundHover',\n  '--selected-pressed-background-color': 'controlsPrimaryBackgroundActive',\n  '--selected-enabled-border-color': 'controlsPrimaryBackgroundActive',\n  '--selected-focused-border-color': 'controlsPrimaryBackgroundActive',\n  '--selected-hover-border-color': 'controlsPrimaryBackgroundActive',\n  '--selected-pressed-border-color': 'controlsPrimaryBackgroundActive',\n  '--on-selected-active-color': 'controlsPrimaryText',\n  '--instrument-enhanced-primary-color': 'controlsPrimaryBackgroundActive',\n  '--instrument-enhanced-secondary-color': 'controlsPrimaryBackground',\n  '--instrument-enhanced-secondary-dif-color': 'controlsCheckedBackgroundActive',\n  '--instrument-enhanced-tertiary-color': 'controlsCheckedBackground',\n  '--element-active-enhanced-color': 'controlsPrimaryBackgroundActive',\n  '--border-focus-color': 'signalingAccentBackground',\n};\n\n/** Builds the OpenBridge CSS variables from HELIO design tokens; missing tokens are left out. */\nexport function openBridgeThemeVars(tokens: Partial<DesignTokens>): CSSProperties {\n  const vars: Record<string, string> = {};\n  for (const [variable, token] of Object.entries(OPENBRIDGE_TOKEN_MAP)) {\n    const value = tokens[token];\n    if (typeof value === 'string' && value !== '') vars[variable] = value;\n  }\n  return vars as CSSProperties;\n}\n\n/** OpenBridge palettes used for light and dark HELIO themes (OpenBridge also has `bright` and `night`). */\nexport const LIGHT_PALETTE = 'day';\nexport const DARK_PALETTE = 'dusk';\n\n/** Lightness (0 = black, 1 = white) of an `hsl()`, `rgb()` or hex colour; `undefined` if unknown. */\nexport function colorLightness(color: string): number | undefined {\n  const hsl = color.match(/hsla?\\(\\s*[\\d.]+(?:deg)?[\\s,]+[\\d.]+%[\\s,]+([\\d.]+)%/i);\n  if (hsl) return Number(hsl[1]) / 100;\n  const rgb = color.match(/rgba?\\(\\s*([\\d.]+)[\\s,]+([\\d.]+)[\\s,]+([\\d.]+)/i);\n  const hex = color.match(/^#([\\da-f]{3}|[\\da-f]{6})\\b/i)?.[1];\n  const channels = rgb\n    ? rgb.slice(1, 4).map(Number)\n    : hex\n      ? (hex.length === 3 ? [...hex].map((c) => c + c) : hex.match(/../g)!).map((c) =>\n          parseInt(c, 16),\n        )\n      : undefined;\n  if (!channels) return undefined;\n  const [r, g, b] = channels;\n  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;\n}\n\n/**\n * OpenBridge palette for the active HELIO theme. The design tokens have no\n * light/dark flag, so it is derived from the background of the theme.\n */\nexport function openBridgePalette(tokens: Partial<DesignTokens>): string | undefined {\n  const background = tokens.containerLevel1Background;\n  const lightness = typeof background === 'string' ? colorLightness(background) : undefined;\n  if (lightness === undefined) return undefined;\n  return lightness < 0.5 ? DARK_PALETTE : LIGHT_PALETTE;\n}\n\n/**\n * Applies the active HELIO theme to the OpenBridge components inside: the\n * accent colours (primary colour etc.) on the wrapper – `display: contents`\n * keeps it out of the layout – and light/dark as the OpenBridge palette on\n * `<html>` (OpenBridge only defines palettes on `:root[data-obc-theme]`).\n */\nexport function OpenBridgeTheme({ children }: { children: ReactNode }) {\n  const tokens = useDesignTokens();\n  const palette = openBridgePalette(tokens);\n\n  useEffect(() => {\n    if (palette) document.documentElement.dataset.obcTheme = palette;\n  }, [palette]);\n\n  return <div style={{ display: 'contents', ...openBridgeThemeVars(tokens) }}>{children}</div>;\n}\n",
   };
 }
 // @runtime-files-end

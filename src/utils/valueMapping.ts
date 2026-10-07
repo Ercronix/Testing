@@ -213,3 +213,131 @@ export function writeValue(ref: unknown, dp: WritableValue, value: unknown): voi
   if (ref === undefined || value === undefined || dp.canWrite === false) return;
   dp.setValue?.(value);
 }
+
+/**
+ * Returns entries from a HELIO string-list property.
+ *
+ * Accepted formats:
+ *
+ * [0.1, 0.2, 0.3]
+ * 0.1, 0.2, 0.3
+ * 0.1; 0.2; 0.3
+ * 0.1 0.2 0.3
+ *
+ * JSON arrays are handled first. If JSON parsing fails, the value is treated
+ * as a comma, semicolon, pipe, or whitespace-separated list.
+ */
+function parseListInput(ref: unknown, dp: ReadableValue): unknown[] | undefined {
+  if (ref === undefined || dp.canRead === false) {
+    return undefined;
+  }
+
+  const { value } = dp;
+
+  // Kept for compatibility with runtimes that can already provide arrays.
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+
+  if (trimmed === '') {
+    return undefined;
+  }
+
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch {
+      // Continue with the lenient separated-string parser below.
+    }
+  }
+
+  const content = trimmed.startsWith('[') && trimmed.endsWith(']') ? trimmed.slice(1, -1) : trimmed;
+
+  return content
+    .split(/[\s,;|]+/)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== '');
+}
+
+/**
+ * Reads a string DynamicProperty as a list of finite numbers.
+ *
+ * Invalid entries are omitted. OpenBridge components remain responsible for
+ * clamping values to their supported ranges.
+ */
+export function optionalNumberList(ref: unknown, dp: ReadableValue): number[] | undefined {
+  const parts = parseListInput(ref, dp);
+
+  if (!parts) {
+    return undefined;
+  }
+
+  const result = parts.map(toFiniteNumber).filter((value): value is number => value !== undefined);
+
+  return result.length > 0 ? result : undefined;
+}
+
+/** Reads a string DynamicProperty as a list of strings. */
+export function optionalStringList(ref: unknown, dp: ReadableValue): string[] | undefined {
+  const parts = parseListInput(ref, dp);
+
+  if (!parts) {
+    return undefined;
+  }
+
+  const result = parts
+    .filter((value) => value !== undefined && value !== null)
+    .map((value) => String(value).trim())
+    .filter((value) => value !== '');
+
+  return result.length > 0 ? result : undefined;
+}
+
+/** Reads a string DynamicProperty as a list of Booleans. */
+export function optionalBooleanList(ref: unknown, dp: ReadableValue): boolean[] | undefined {
+  const parts = parseListInput(ref, dp);
+
+  if (!parts) {
+    return undefined;
+  }
+
+  const result = parts.map(toBoolean).filter((value): value is boolean => value !== undefined);
+
+  return result.length > 0 ? result : undefined;
+}
+
+/**
+ * Reads a string DynamicProperty as a primitive list.
+ *
+ * JSON arrays preserve primitive item types. A separated string produces
+ * string entries because there is no reliable way to infer the intended type.
+ */
+export function optionalPrimitiveList(
+  ref: unknown,
+  dp: ReadableValue,
+): Array<string | number | boolean> | undefined {
+  const parts = parseListInput(ref, dp);
+
+  if (!parts) {
+    return undefined;
+  }
+
+  const result = parts.filter(
+    (value): value is string | number | boolean =>
+      typeof value === 'string' ||
+      typeof value === 'boolean' ||
+      (typeof value === 'number' && Number.isFinite(value)),
+  );
+
+  return result.length > 0 ? result : undefined;
+}
