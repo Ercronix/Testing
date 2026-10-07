@@ -127,16 +127,19 @@ Shared code:
 
 Styling: `@oicl/openbridge-webcomponents/dist/openbridge.css` is imported once
 in `src/main.tsx` and injected into `<head>` by `rollup-plugin-import-css`
-(`inject: true`). `.storybook/preview.tsx` imports it the same way. The default
-(day) palette is used; there is no palette switching. Component styles use the
-SDK's `className()` / `cx()` helpers.
+(`inject: true`). `.storybook/preview.tsx` imports it the same way. Component
+styles use the SDK's `className()` / `cx()` helpers.
 
 Theming: every element wraps its content in `<OpenBridgeTheme>`
 (`src/utils/OpenBridgeTheme.tsx`). It reads the active HELIO theme with
 `useDesignTokens()` and sets the OpenBridge accent CSS variables
 (`--selected-*`, `--instrument-enhanced-*`, …) on a `display: contents` div;
 they inherit into the components' shadow DOM. The mapping is
-`OPENBRIDGE_TOKEN_MAP`; alert colours are deliberately not mapped. Needs
+`OPENBRIDGE_TOKEN_MAP`; alert colours are deliberately not mapped. Light/dark:
+the tokens have no mode flag, so `openBridgePalette` derives it from the
+lightness of `containerLevel1Background` and sets `data-obc-theme` (`day` /
+`dusk`, see `LIGHT_PALETTE`/`DARK_PALETTE`) on `<html>` – OpenBridge only
+defines palettes on `:root[data-obc-theme]`, so it cannot be scoped. Needs
 `@hmiproject/helio-sdk` ≥ 1.1.0, hence `minimumRequiredHelioVersion: '26.2.0'`
 (the SDK type-checks it). The Storybook decorator applies the SDK's default
 tokens.
