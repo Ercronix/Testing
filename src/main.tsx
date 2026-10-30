@@ -4,6 +4,7 @@ import { azimuthThrusterElement } from './elements/AzimuthThrusterElement';
 import { compassElement } from './elements/CompassElement';
 import { radialGaugeElement } from './elements/RadialGaugeElement';
 import { flatCompassElement } from './elements/FlatCompassElement';
+import { commandMenuElement } from './elements/CommandMenuElement';
 import { angleConversionProperty } from './dynamicProperties/angleConversion';
 import { cardinalDirectionProperty } from './dynamicProperties/cardinalDirection';
 
@@ -19,5 +20,11 @@ export default createLibraryExtension({
 
   dynamicProperties: [angleConversionProperty, cardinalDirectionProperty],
 
-  elements: [compassElement, azimuthThrusterElement, radialGaugeElement, flatCompassElement],
+  elements: [
+    compassElement,
+    azimuthThrusterElement,
+    radialGaugeElement,
+    flatCompassElement,
+    commandMenuElement,
+  ],
 });
