@@ -35,8 +35,8 @@ npx prettier --write src      # formatting (single quotes, trailing commas, widt
 npm run storybook             # http://localhost:9001
 npm run create:element -- gauge-radial --name "Radial Gauge"   # generate an element
 npm run create:element -- --list [instruments|indicators|automation]
-npm run create:icons          # OpenBridge icons (--list, --groups a,b, --dry-run)
-npm run create:icons -- --from icons/plant --out plantIcons   # own SVG/PNG icons
+npm run create:icons          # OpenBridge icons (= create-icons.mjs --openbridge; --list, --groups a,b)
+node scripts/create-icons.mjs # own SVG/PNG icons from ./icons (--from <dir>, --out <set>, --dry-run)
 ```
 
 CI (`.github/workflows`) runs build, lint and test.
@@ -103,10 +103,12 @@ grouped like the OpenBridge Storybook: instruments, indicators (navigation
 
 **Icons** (`docs/icons.md`): `scripts/create-icons.mjs` writes an icon set
 `src/icons/<set>.generated.ts` (data + `export const <set>`) and adds it to
-`icons: [...]` in `main.tsx`. Sources: OpenBridge `<obi-*>` icons (default,
-set `openBridgeIcons`; names from the id, categories from
-`dist/icons/names.js`) or `--from <dir>` with own `.svg`/`.png` files
-(single-color SVGs → `currentColor`, PNGs as data URL, `--tint` to recolor).
+`icons: [...]` in `main.tsx`. Sources: own `.svg`/`.png` files from `icons/`
+(default) or `--from <dir>` (single-color SVGs → `currentColor`, PNGs as data
+URL, `--tint` to recolor), or `--openbridge` for the OpenBridge `<obi-*>` icons
+(set `openBridgeIcons`; names from the id, categories from `dist/icons/names.js`).
+The script is self-contained (only needs the HELIO SDK) so it can be copied
+into any HELIO extension.
 All sets render through `src/icons/iconData.tsx`; run
 `node scripts/create-icons.mjs --sync-runtime` after editing it. Rerun the
 OpenBridge set after an OpenBridge update (`src/tests/createIcons.test.mjs`

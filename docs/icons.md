@@ -2,23 +2,26 @@
 
 `scripts/create-icons.mjs` adds icons to the extension as HELIO icons
 (`createIcon`), so they appear in the HELIO IDE icon selector next to the
-built-in ones. It has two sources:
+built-in ones. It is self-contained (only needs `@hmiproject/helio-sdk`) and can
+be copied into any HELIO extension. Sources:
 
-- **OpenBridge** (default): every `<obi-*>` icon of
+- **Own icons** (default): `.svg` and `.png` files in `icons/` next to
+  `package.json`, or another folder with `--from <dir>`.
+- **OpenBridge** (`--openbridge`): every `<obi-*>` icon of
   `@oicl/openbridge-webcomponents` (2101 in 2.0.0). Registered here as
   `openBridgeIcons`.
-- **Own icons** (`--from <dir>`): a folder of `.svg` and `.png` files.
 
 Each run writes one **icon set** – `src/icons/<set>.generated.ts`, exporting
 `const <set>` – and adds it to `icons: [...]` in `src/main.tsx`. Several sets
-can live side by side (`icons: [...openBridgeIcons, ...plantIcons]`).
+can live side by side (`icons: [...openBridgeIcons, ...customIcons]`).
 
 ```bash
-npm run create:icons                                   # all OpenBridge icons
+node scripts/create-icons.mjs                          # own icons from ./icons → customIcons
+node scripts/create-icons.mjs --dry-run                # show names/categories, write nothing
+node scripts/create-icons.mjs --from icons/plant --category "Plant" --out plantIcons
+npm run create:icons                                   # all OpenBridge icons (--openbridge)
 npm run create:icons -- --list                         # OpenBridge groups with counts
 npm run create:icons -- --groups "Maritime icons,UI icons / General"   # only some
-npm run create:icons -- --from icons/plant --category "Plant" --out plantIcons
-npm run create:icons -- --from icons/plant --dry-run   # show names/categories, write nothing
 ```
 
 Browse the OpenBridge icons in Storybook under **OpenBridge/Icons**.
@@ -34,14 +37,14 @@ Browse the OpenBridge icons in Storybook under **OpenBridge/Icons**.
 
 Data entries are `[name, description, category index, width, height, inner SVG markup]`.
 
-## Own icons (`--from`)
+## Own icons
 
-| HELIO field   | Value                                                                    |
-| ------------- | ------------------------------------------------------------------------ |
-| `name`        | file name: `pump-running.svg` / `pump_running.png` → "Pump Running"      |
-| `description` | path inside the folder, e.g. `Pumps/pump-running.svg`                    |
-| `category`    | `--category` (default: folder name) + subfolders: "Plant / Pumps"        |
-| size          | scaled so the longer side is `--size` px (default 24), aspect ratio kept |
+| HELIO field   | Value                                                                      |
+| ------------- | -------------------------------------------------------------------------- |
+| `name`        | file name: `pump-running.svg` / `pump_running.png` → "Pump Running"        |
+| `description` | path inside the folder, e.g. `Pumps/pump-running.svg`                      |
+| `category`    | `--category` (default: the extension `name`) + subfolders: "Plant / Pumps" |
+| size          | scaled so the longer side is `--size` px (default 24), aspect ratio kept   |
 
 **SVG**
 

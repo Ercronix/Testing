@@ -18,7 +18,9 @@ describe('create-icons.mjs', () => {
   });
 
   test('generated data is up to date with the installed OpenBridge package', () => {
-    const output = execFileSync('node', [script, '--dry-run'], { encoding: 'utf8' });
+    const output = execFileSync('node', [script, '--openbridge', '--dry-run'], {
+      encoding: 'utf8',
+    });
     const count = Number(output.match(/: (\d+) icons/)?.[1]);
     const data = readFileSync('src/icons/openbridgeIcons.generated.ts', 'utf8');
     expect(data.match(/^ {2}\['/gm)?.length).toBe(count);
@@ -65,13 +67,28 @@ describe('create-icons.mjs --from', () => {
 
   afterAll(() => rmSync(project, { recursive: true, force: true }));
 
+  test('without arguments it needs an icons/ folder', () => {
+    expect(() => run()).toThrow(/No icons\/ folder/);
+  });
+
+  test('without arguments it reads icons/, with the extension name as category', () => {
+    mkdirSync(join(project, 'icons/Tanks'), { recursive: true });
+    writeFileSync(join(project, 'icons/Tanks/tank-full.svg'), '<svg viewBox="0 0 24 24"/>');
+    run();
+    const data = read('src/icons/customIcons.generated.ts');
+    expect(data).toContain("['Tank Full', 'Tanks/tank-full.svg', 0,");
+    expect(data).toContain("'X / Tanks'");
+    expect(data).toMatch(/Regenerate with `node \S*create-icons\.mjs`\./);
+    expect(read('src/main.tsx')).toContain('icons: [...customIcons]');
+  });
+
   test('writes the set, the runtime and registers it in main.tsx', () => {
     run('--from', 'my-icons', '--category', 'Plant', '--out', 'plantIcons');
     // No .prettierrc in the temp project: prettier's default double quotes.
     expect(read('src/main.tsx')).toMatch(
       /import \{ plantIcons \} from ["']\.\/icons\/plantIcons\.generated["'];/,
     );
-    expect(read('src/main.tsx')).toContain('icons: [...plantIcons]');
+    expect(read('src/main.tsx')).toMatch(/icons: \[\.\.\.plantIcons, \.\.\.customIcons\]/);
     expect(read('src/icons/iconData.tsx')).toBe(readFileSync('src/icons/iconData.tsx', 'utf8'));
   });
 

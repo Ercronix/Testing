@@ -1,22 +1,26 @@
 /**
- * Adds icons to a HELIO extension as `createIcon` icons. Two sources:
+ * Adds icons to a HELIO extension as `createIcon` icons. Self-contained: copy
+ * this file into any extension built from the HELIO template, put your icons
+ * into an `icons/` folder next to `package.json` and run
  *
- *   OpenBridge (default)   every `<obi-*>` icon of `@oicl/openbridge-webcomponents`
- *   --from <dir>           your own `.svg` and `.png` files
+ *   node scripts/create-icons.mjs
  *
- * Each run writes one icon set and registers it:
+ * It writes one icon set and registers it:
  *
  *   <src>/icons/<set>.generated.ts   icon data (names, categories, SVG markup) + `export const <set>`
  *   <src>/icons/iconData.tsx         turns the data into HELIO icons (created if missing)
- *   <src>/main.tsx                   registration (`icons: [...openBridgeIcons, ...<set>]`)
+ *   <src>/main.tsx                   registration (`icons: [...<set>]`)
  *
- * OpenBridge: the icons' `currentColor` variant, categories from OpenBridge's
- * grouping (`dist/icons/names.js`), names from the id (`ais-proposal` → "AIS Proposal").
+ * Rerun it whenever the folder changes. Only `@hmiproject/helio-sdk` is needed.
  *
- * Own icons (--from): the name comes from the file name (`pump-running.svg` →
- * "Pump Running"), the category from --category (default: the folder name)
- * plus subfolders ("Plant / Pumps"). Every icon is scaled so its longer side
- * is --size px (default 24).
+ *   icons/
+ *     valve_open.svg          → "Valve Open"    in "<extension name>"
+ *     tank-level.png          → "Tank Level"    in "<extension name>"
+ *     Pumps/pump-running.svg  → "Pump Running"  in "<extension name> / Pumps"
+ *
+ * Names come from the file names, the category from --category (default: the
+ * `name` in createLibraryExtension, else the folder name) plus subfolders.
+ * Every icon is scaled so its longer side is --size px (default 24).
  *   - SVG: single-color icons are switched to `currentColor` so HELIO can
  *     color them; multi-color icons keep their colors (--keep-colors keeps
  *     them always). Ids and CSS classes are prefixed per icon.
@@ -24,22 +28,29 @@
  *     PNG's alpha channel is used as a mask filled with `currentColor`.
  *     Export PNGs at 2–3× the display size, they are not sharp otherwise.
  *
+ * With --openbridge it adds the `<obi-*>` icons of `@oicl/openbridge-webcomponents`
+ * instead (set `openBridgeIcons`; names from the id, `ais-proposal` → "AIS Proposal",
+ * categories from OpenBridge's grouping).
+ *
  * HELIO uses namespace + name as the icon's ID: renaming or removing an icon
- * (or filtering OpenBridge groups away) breaks the projects that use it.
+ * breaks the projects that use it. Names must be unique across all sets.
  *
  * Usage:
- *   node scripts/create-icons.mjs [--groups a,b] [options]       OpenBridge icons
- *   node scripts/create-icons.mjs --list                         OpenBridge groups
- *   node scripts/create-icons.mjs --from icons/plant [options]   own SVG/PNG icons
+ *   node scripts/create-icons.mjs [options]                own icons from ./icons
+ *   node scripts/create-icons.mjs --from <dir> [options]   own icons from another folder
+ *   node scripts/create-icons.mjs --openbridge [--groups a,b]
+ *   node scripts/create-icons.mjs --openbridge --list      OpenBridge groups
  *
+ *   --from <dir>           folder with .svg/.png files, relative to the project root (default: icons)
+ *   --out <set>            icon set / export name (default: customIcons, OpenBridge: openBridgeIcons)
+ *   --category <name>      category in the IDE (default: the extension name)
+ *   --size <px>            longer side of the icons (default 24)
+ *   --keep-colors          never switch SVG colors to currentColor
+ *   --tint                 color PNGs with currentColor (uses their alpha as mask)
+ *   --openbridge           OpenBridge icons instead of a folder
  *   --groups a,b           OpenBridge: only these groups or "group / subgroup"s,
  *                          e.g. --groups "Maritime icons,UI icons / General"
- *   --from <dir>           folder with .svg/.png files (relative to the project root)
- *   --out <set>            icon set / export name (default: openBridgeIcons, with --from: customIcons)
- *   --category <name>      --from: category in the IDE (default: the folder name)
- *   --size <px>            --from: longer side of the icons (default 24)
- *   --keep-colors          --from: never switch SVG colors to currentColor
- *   --tint                 --from: color PNGs with currentColor (uses their alpha as mask)
+ *   --list                 OpenBridge: print the groups with icon counts
  *   --root <dir>           project root (default: nearest package.json from cwd)
  *   --src <dir>            source folder relative to the root (default: src)
  *   --main <file>          extension entry relative to the root (default: <src>/main.tsx)
@@ -107,7 +118,15 @@ const SPELLINGS = {
 
 // ── CLI ──────────────────────────────────────────────────────────────────
 
-const FLAGS = ['dry-run', 'list', 'no-register', 'sync-runtime', 'keep-colors', 'tint'];
+const FLAGS = [
+  'dry-run',
+  'list',
+  'no-register',
+  'sync-runtime',
+  'keep-colors',
+  'tint',
+  'openbridge',
+];
 
 function parseArgs(argv) {
   const args = { _: [] };
@@ -172,7 +191,7 @@ if (!existsSync(inRoot('node_modules/@hmiproject/helio-sdk'))) {
   fail('Package @hmiproject/helio-sdk is not installed. Run: npm install');
 }
 
-const custom = args.from !== undefined;
+const custom = !args.openbridge && !args.list && args.groups === undefined;
 const setName = args.out ?? (custom ? 'customIcons' : 'openBridgeIcons');
 if (!/^[a-z][A-Za-z0-9]*$/.test(setName)) {
   fail(`--out must be a camelCase identifier like "plantIcons", got "${setName}".`);
@@ -295,12 +314,21 @@ const iconSize = Number(args.size ?? 24);
 if (!(iconSize > 0)) fail(`--size must be a positive number, got "${args.size}".`);
 
 function customIcons() {
-  const dir = inRoot(args.from);
-  if (!existsSync(dir) || !statSync(dir).isDirectory())
-    fail(`--from: ${args.from} is not a folder.`);
-  const category = args.category ?? basename(dir);
+  const from = args.from ?? 'icons';
+  const dir = inRoot(from);
+  if (!existsSync(dir) || !statSync(dir).isDirectory()) {
+    fail(
+      args.from === undefined
+        ? `No icons/ folder in ${root}. Create one with .svg/.png files, or pass --from <dir> (or --openbridge).`
+        : `--from: ${from} is not a folder.`,
+    );
+  }
+  const category = args.category ?? extensionName() ?? basename(dir);
   const files = walk(dir);
-  const skipped = files.filter((f) => !ICON_EXTENSIONS.includes(extname(f).toLowerCase()));
+  // Code next to the icons (e.g. --from src/icons) is not reported.
+  const skipped = files.filter(
+    (f) => !ICON_EXTENSIONS.includes(extname(f).toLowerCase()) && !/\.tsx?$/.test(f),
+  );
   if (skipped.length) {
     warn(
       `Skipped ${skipped.length} file(s) that are not .svg/.png: ${skipped.map((f) => relative(dir, f)).join(', ')}`,
@@ -330,6 +358,13 @@ function customIcons() {
     );
   }
   return { source: relative(root, dir).split(sep).join('/') || '.', icons };
+}
+
+/** The `name` passed to createLibraryExtension in main.tsx. */
+function extensionName() {
+  const main = readIfExists(inRoot(mainFile)) ?? '';
+  const call = main.slice(Math.max(0, main.search(/createLibraryExtension\(\s*\{/)));
+  return call.match(/\bname\s*:\s*(['"`])((?:(?!\1).)+)\1/)?.[2];
 }
 
 function walk(dir) {
@@ -561,12 +596,17 @@ function otherSetNames() {
 
 // ── Sources ──────────────────────────────────────────────────────────────
 
-const regenerate = custom
-  ? `node scripts/create-icons.mjs --from ${source}${['out', 'category', 'size']
-      .filter((k) => args[k] !== undefined)
-      .map((k) => ` --${k} ${JSON.stringify(args[k])}`)
-      .join('')}${args['keep-colors'] ? ' --keep-colors' : ''}${args.tint ? ' --tint' : ''}`
-  : `npm run create:icons${args.groups ? ` -- --groups ${JSON.stringify(args.groups)}` : ''}`;
+const regenerate = [
+  `node ${relative(root, SCRIPT_PATH).split(sep).join('/')}`,
+  !custom && '--openbridge',
+  ...['from', 'out', 'category', 'size', 'groups']
+    .filter((k) => args[k] !== undefined)
+    .map((k) => `--${k} ${JSON.stringify(args[k])}`),
+  args['keep-colors'] && '--keep-colors',
+  args.tint && '--tint',
+]
+  .filter(Boolean)
+  .join(' ');
 
 const dataSource = `// ${GENERATED_MARKER} from ${source} – do not edit.
 // Regenerate with \`${regenerate}\`.
