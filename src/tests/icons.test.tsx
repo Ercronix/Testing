@@ -1,7 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, test } from 'vitest';
-import { openBridgeIcons } from '../icons/openbridgeIcons';
-import { OPENBRIDGE_ICONS } from '../icons/openbridgeIcons.generated';
+import { openBridgeIcons, openBridgeIconsData } from '../icons/openbridgeIcons.generated';
 
 describe('OpenBridge icons', () => {
   test('names are unique (HELIO uses them as IDs)', () => {
@@ -30,11 +29,11 @@ describe('OpenBridge icons', () => {
   });
 
   test('element ids are prefixed per icon', () => {
-    const withIds = OPENBRIDGE_ICONS.filter(([, , , , , markup]) => markup.includes(' id="'));
+    const withIds = openBridgeIconsData.filter(([, , , , , markup]) => markup.includes(' id="'));
     expect(withIds.length).toBeGreaterThan(0);
-    for (const [id, , , , , markup] of withIds) {
+    for (const [, description, , , , markup] of withIds) {
       for (const [, ref] of markup.matchAll(/(?:id="|url\(#|href="#)([^")]+)/g)) {
-        expect(ref.startsWith(`obi-${id}-`)).toBe(true);
+        expect(ref.startsWith(`${description}-`)).toBe(true);
       }
     }
   });

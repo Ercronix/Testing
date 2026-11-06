@@ -6,7 +6,7 @@ import { radialGaugeElement } from './elements/RadialGaugeElement';
 import { flatCompassElement } from './elements/FlatCompassElement';
 import { angleConversionProperty } from './dynamicProperties/angleConversion';
 import { cardinalDirectionProperty } from './dynamicProperties/cardinalDirection';
-import { openBridgeIcons } from './icons/openbridgeIcons';
+import { openBridgeIcons } from './icons/openbridgeIcons.generated';
 
 export default createLibraryExtension({
   name: 'OpenBridge Instruments',

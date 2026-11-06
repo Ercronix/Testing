@@ -35,7 +35,8 @@ npx prettier --write src      # formatting (single quotes, trailing commas, widt
 npm run storybook             # http://localhost:9001
 npm run create:element -- gauge-radial --name "Radial Gauge"   # generate an element
 npm run create:element -- --list [instruments|indicators|automation]
-npm run create:icons          # regenerate the OpenBridge icons (--list, --groups a,b, --dry-run)
+npm run create:icons          # OpenBridge icons (--list, --groups a,b, --dry-run)
+npm run create:icons -- --from icons/plant --out plantIcons   # own SVG/PNG icons
 ```
 
 CI (`.github/workflows`) runs build, lint and test.
@@ -100,14 +101,16 @@ grouped like the OpenBridge Storybook: instruments, indicators (navigation
   the build and a Storybook build there. Delete it afterwards (vitest would
   pick up its tests).
 
-**Icons** (`docs/openbridge-icons.md`): `scripts/create-icons.mjs` turns every
-OpenBridge `<obi-*>` icon into data in `src/icons/openbridgeIcons.generated.ts`
-(currentColor SVG markup, name derived from the id, category from
-`dist/icons/names.js`); `src/icons/openbridgeIcons.tsx` maps it to `createIcon`
-and is registered as `icons: openBridgeIcons`. Rerun it after an OpenBridge
-update (`src/tests/createIcons.test.mjs` checks the data is current), and run
-`node scripts/create-icons.mjs --sync-runtime` after editing
-`openbridgeIcons.tsx`. Icon names are IDs too – don't change `SPELLINGS`.
+**Icons** (`docs/icons.md`): `scripts/create-icons.mjs` writes an icon set
+`src/icons/<set>.generated.ts` (data + `export const <set>`) and adds it to
+`icons: [...]` in `main.tsx`. Sources: OpenBridge `<obi-*>` icons (default,
+set `openBridgeIcons`; names from the id, categories from
+`dist/icons/names.js`) or `--from <dir>` with own `.svg`/`.png` files
+(single-color SVGs → `currentColor`, PNGs as data URL, `--tint` to recolor).
+All sets render through `src/icons/iconData.tsx`; run
+`node scripts/create-icons.mjs --sync-runtime` after editing it. Rerun the
+OpenBridge set after an OpenBridge update (`src/tests/createIcons.test.mjs`
+checks it). Icon names are IDs too – don't change `SPELLINGS`.
 
 Generated components spread `definedProps(props)`: the React wrappers assign
 every passed prop, so `undefined` would overwrite OpenBridge's own defaults.

@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
-import { openBridgeIcons } from './openbridgeIcons';
-import { OPENBRIDGE_ICON_CATEGORIES } from './openbridgeIcons.generated';
+import { openBridgeIcons } from './openbridgeIcons.generated';
+
+const categories = [...new Set(openBridgeIcons.map((icon) => icon.category))];
 
 type GalleryProps = {
   /** Icon color; the SVGs use `currentColor`. */
@@ -31,7 +32,7 @@ function IconGallery({ color, size }: GalleryProps) {
         />
         <select value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="">All categories</option>
-          {OPENBRIDGE_ICON_CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <option key={c}>{c}</option>
           ))}
         </select>
