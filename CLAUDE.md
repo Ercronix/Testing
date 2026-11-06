@@ -35,6 +35,8 @@ npx prettier --write src      # formatting (single quotes, trailing commas, widt
 npm run storybook             # http://localhost:9001
 npm run create:element -- gauge-radial --name "Radial Gauge"   # generate an element
 npm run create:element -- --list [instruments|indicators|automation]
+npm run create:icons          # OpenBridge icons (= create-icons.mjs --openbridge; --list, --groups a,b)
+node scripts/create-icons.mjs # own SVG/PNG icons from ./icons (--from <dir>, --out <set>, --dry-run)
 ```
 
 CI (`.github/workflows`) runs build, lint and test.
@@ -98,6 +100,21 @@ grouped like the OpenBridge Storybook: instruments, indicators (navigation
   (`git show 6bb02da:src/main.tsx`); delete the tests – then run tsc, eslint,
   the build and a Storybook build there. Delete it afterwards (vitest would
   pick up its tests).
+
+**Icons** (`docs/icons.md`): `scripts/create-icons.mjs` writes an icon set
+`src/icons/<set>.generated.ts` (data + `export const <set>`) and adds it to
+`icons: [...]` in `main.tsx`. Sources: own `.svg`/`.png` files from `icons/`
+(default) or `--from <dir>` (single-color SVGs → `currentColor`, PNGs as data
+URL, `--tint` to recolor), or `--openbridge` for the OpenBridge `<obi-*>` icons
+(set `openBridgeIcons`; names from the id, categories from `dist/icons/names.js`).
+`scripts/create-custom-icons.mjs` is the same script without OpenBridge – the
+one to copy into other HELIO extensions (self-contained, only needs the HELIO
+SDK). Keep the two in sync: `src/tests/createIcons.test.mjs` runs the
+own-icons tests against both.
+All sets render through `src/icons/iconData.tsx`; after editing it run
+`--sync-runtime` with both scripts. Rerun the
+OpenBridge set after an OpenBridge update (`src/tests/createIcons.test.mjs`
+checks it). Icon names are IDs too – don't change `SPELLINGS`.
 
 Generated components spread `definedProps(props)`: the React wrappers assign
 every passed prop, so `undefined` would overwrite OpenBridge's own defaults.
