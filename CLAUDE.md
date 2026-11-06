@@ -107,10 +107,12 @@ grouped like the OpenBridge Storybook: instruments, indicators (navigation
 (default) or `--from <dir>` (single-color SVGs → `currentColor`, PNGs as data
 URL, `--tint` to recolor), or `--openbridge` for the OpenBridge `<obi-*>` icons
 (set `openBridgeIcons`; names from the id, categories from `dist/icons/names.js`).
-The script is self-contained (only needs the HELIO SDK) so it can be copied
-into any HELIO extension.
-All sets render through `src/icons/iconData.tsx`; run
-`node scripts/create-icons.mjs --sync-runtime` after editing it. Rerun the
+`scripts/create-custom-icons.mjs` is the same script without OpenBridge – the
+one to copy into other HELIO extensions (self-contained, only needs the HELIO
+SDK). Keep the two in sync: `src/tests/createIcons.test.mjs` runs the
+own-icons tests against both.
+All sets render through `src/icons/iconData.tsx`; after editing it run
+`--sync-runtime` with both scripts. Rerun the
 OpenBridge set after an OpenBridge update (`src/tests/createIcons.test.mjs`
 checks it). Icon names are IDs too – don't change `SPELLINGS`.
 

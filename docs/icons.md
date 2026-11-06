@@ -3,7 +3,9 @@
 `scripts/create-icons.mjs` adds icons to the extension as HELIO icons
 (`createIcon`), so they appear in the HELIO IDE icon selector next to the
 built-in ones. It is self-contained (only needs `@hmiproject/helio-sdk`) and can
-be copied into any HELIO extension. Sources:
+be copied into any HELIO extension. `scripts/create-custom-icons.mjs` is the
+same script without the OpenBridge source – use that one in other extensions.
+Sources:
 
 - **Own icons** (default): `.svg` and `.png` files in `icons/` next to
   `package.json`, or another folder with `--from <dir>`.
@@ -102,7 +104,8 @@ are migrated on the next run: the old module is removed if unchanged and the
 `main.tsx` import is repointed.
 
 **After changing `src/icons/iconData.tsx` run
-`node scripts/create-icons.mjs --sync-runtime`** – the test fails otherwise.
+`node scripts/create-icons.mjs --sync-runtime` and
+`node scripts/create-custom-icons.mjs --sync-runtime`** – the test fails otherwise.
 
 ## Pitfalls
 

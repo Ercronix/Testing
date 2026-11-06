@@ -6,17 +6,24 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
+/** `create-custom-icons.mjs` is `create-icons.mjs` without OpenBridge – both must behave alike. */
+const SCRIPTS = ['create-icons.mjs', 'create-custom-icons.mjs'];
 const script = resolve('scripts/create-icons.mjs');
 
-describe('create-icons.mjs', () => {
-  // The script embeds a copy of the icon runtime so it can bootstrap other repos.
-  test('embedded icons/iconData.tsx matches src (run --sync-runtime if not)', () => {
-    const embedded = execFileSync('node', [script, '--print-runtime', 'icons/iconData.tsx'], {
-      encoding: 'utf8',
-    });
+// The scripts embed a copy of the icon runtime so they can bootstrap other repos.
+test.each(SCRIPTS)(
+  '%s: embedded icons/iconData.tsx matches src (run --sync-runtime if not)',
+  (name) => {
+    const embedded = execFileSync(
+      'node',
+      [resolve('scripts', name), '--print-runtime', 'icons/iconData.tsx'],
+      { encoding: 'utf8' },
+    );
     expect(embedded).toBe(readFileSync('src/icons/iconData.tsx', 'utf8'));
-  });
+  },
+);
 
+describe('create-icons.mjs --openbridge', () => {
   test('generated data is up to date with the installed OpenBridge package', () => {
     const output = execFileSync('node', [script, '--openbridge', '--dry-run'], {
       encoding: 'utf8',
@@ -31,27 +38,33 @@ describe('create-icons.mjs', () => {
 const PNG =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
-describe('create-icons.mjs --from', () => {
+/** A minimal extension in a temp folder (node_modules linked to this repo's). */
+function createProject() {
+  const project = mkdtempSync(join(tmpdir(), 'create-icons-'));
+  symlinkSync(resolve('node_modules'), join(project, 'node_modules'), 'dir');
+  mkdirSync(join(project, 'src'));
+  writeFileSync(join(project, 'package.json'), '{}');
+  for (const file of ['tsconfig.json', '.prettierrc.json']) {
+    writeFileSync(join(project, file), readFileSync(file));
+  }
+  writeFileSync(
+    join(project, 'src/main.tsx'),
+    "import { createLibraryExtension } from '@hmiproject/helio-sdk';\n\nexport default createLibraryExtension({\n  name: 'X',\n  elements: [],\n});\n",
+  );
+  return project;
+}
+
+describe.each(SCRIPTS)('%s with own icons', (name) => {
   let project;
   const run = (...args) =>
-    execFileSync('node', [script, '--root', project, ...args], {
+    execFileSync('node', [resolve('scripts', name), '--root', project, ...args], {
       encoding: 'utf8',
       stdio: 'pipe',
     });
   const read = (file) => readFileSync(join(project, file), 'utf8');
 
   beforeAll(() => {
-    project = mkdtempSync(join(tmpdir(), 'create-icons-'));
-    symlinkSync(resolve('node_modules'), join(project, 'node_modules'), 'dir');
-    mkdirSync(join(project, 'src'));
-    writeFileSync(join(project, 'package.json'), '{}');
-    for (const file of ['tsconfig.json', '.prettierrc.json']) {
-      writeFileSync(join(project, file), readFileSync(file));
-    }
-    writeFileSync(
-      join(project, 'src/main.tsx'),
-      "import { createLibraryExtension } from '@hmiproject/helio-sdk';\n\nexport default createLibraryExtension({\n  name: 'X',\n  elements: [],\n});\n",
-    );
+    project = createProject();
     const icons = join(project, 'my-icons');
     mkdirSync(join(icons, 'Pumps'), { recursive: true });
     writeFileSync(
@@ -78,7 +91,7 @@ describe('create-icons.mjs --from', () => {
     const data = read('src/icons/customIcons.generated.ts');
     expect(data).toContain("['Tank Full', 'Tanks/tank-full.svg', 0,");
     expect(data).toContain("'X / Tanks'");
-    expect(data).toMatch(/Regenerate with `node \S*create-icons\.mjs`\./);
+    expect(data).toMatch(/Regenerate with `node \S*create-(custom-)?icons\.mjs`\./);
     expect(read('src/main.tsx')).toContain('icons: [...customIcons]');
   });
 
@@ -131,4 +144,22 @@ describe('create-icons.mjs --from', () => {
     writeFileSync(join(project, 'more-icons/valve-open.svg'), '<svg viewBox="0 0 24 24"/>');
     expect(() => run('--from', 'more-icons', '--out', 'otherIcons')).toThrow(/Valve Open/);
   });
+});
+
+test('each script regenerates icon sets written by the other', () => {
+  const project = createProject();
+  try {
+    mkdirSync(join(project, 'icons'));
+    writeFileSync(join(project, 'icons/lamp.svg'), '<svg viewBox="0 0 24 24"/>');
+    const runScript = (name) =>
+      execFileSync('node', [resolve('scripts', name), '--root', project], { stdio: 'pipe' });
+    const main = () => readFileSync(join(project, 'src/main.tsx'), 'utf8');
+    runScript(SCRIPTS[0]);
+    const registered = main();
+    expect(registered).toContain('icons: [...customIcons]');
+    for (const name of [...SCRIPTS].reverse()) runScript(name);
+    expect(main()).toBe(registered);
+  } finally {
+    rmSync(project, { recursive: true, force: true });
+  }
 });
