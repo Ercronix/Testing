@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, test } from 'vitest';
+import { createIconsFromData } from '../icons/iconData';
 import { openBridgeIcons, openBridgeIconsData } from '../icons/openbridgeIcons.generated';
 
 describe('OpenBridge icons', () => {
@@ -36,5 +37,19 @@ describe('OpenBridge icons', () => {
         expect(ref.startsWith(`${description}-`)).toBe(true);
       }
     }
+  });
+
+  test('sized like HELIO built-in icons (S/M/L), whatever the data size', () => {
+    // A hand-added entry with a 512 viewBox must not render 512 px wide.
+    const [big] = createIconsFromData(
+      ['Test'],
+      [['Big', '', 0, 512, 512, '<path d="M0 0h512v512z"/>']],
+    );
+    const html = (size: 'S' | 'M' | 'L') => renderToStaticMarkup(<big.Icon size={size} />);
+    expect(html('S')).toMatch(/width="1em" height="1em" viewBox="0 0 512 512"/);
+    expect(html('S')).toContain('font-size:16px');
+    expect(html('M')).toContain('font-size:24px');
+    expect(html('L')).toContain('font-size:36px');
+    expect(renderToStaticMarkup(<big.Icon size="M" width={48} />)).toContain('width="48"');
   });
 });

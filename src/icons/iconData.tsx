@@ -17,11 +17,15 @@ export type IconData = readonly [
 
 type IconProps = IconComponentProps & SVGProps<SVGSVGElement>;
 
+/** Font size per HELIO icon size – the same as HELIO's built-in `<Icon>`. */
+const FONT_SIZES = { S: 16, M: 24, L: 36 } as const;
+
 /**
- * Turns generated icon data into HELIO icons. The `<svg>` root uses
- * `fill="currentColor"`, so monochrome icons take the color HELIO renders them
- * with. Like an imported SVG, an icon keeps its intrinsic size unless HELIO
- * passes one.
+ * Turns generated icon data into HELIO icons. Like HELIO's built-in icons, the
+ * `<svg>` is `1em` square with the font size taken from `size`, so the icon is
+ * as big as the built-in ones whatever its `viewBox`; width and height props
+ * passed by HELIO still win. The root uses `fill="currentColor"`, so
+ * monochrome icons take the color HELIO renders them with.
  */
 export function createIconsFromData(
   categories: readonly string[],
@@ -30,15 +34,15 @@ export function createIconsFromData(
   return icons.map(([name, description, category, width, height, markup]) => {
     const html = { __html: markup };
 
-    // `size` is HELIO's S/M/L hint; each icon has one drawing for all sizes.
-    function Icon({ size: _size, children: _children, ...svgProps }: IconProps) {
+    function Icon({ size, style, children: _children, ...svgProps }: IconProps) {
       return (
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          width={width}
-          height={height}
+          width="1em"
+          height="1em"
           viewBox={`0 0 ${width} ${height}`}
           fill="currentColor"
+          style={{ fontSize: FONT_SIZES[size] ?? FONT_SIZES.M, ...style }}
           {...svgProps}
           dangerouslySetInnerHTML={html}
         />

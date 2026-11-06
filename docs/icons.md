@@ -115,9 +115,12 @@ are migrated on the next run: the old module is removed if unchanged and the
   unique across all sets – the script refuses duplicates.
 - **Bundle size.** All OpenBridge icons add about 2.7 MB to `lib/*.js`. Use
   `--groups` to ship only what you need.
-- **One drawing for all sizes.** HELIO passes `size` (`S`/`M`/`L`); it is
-  ignored. An icon keeps its intrinsic size unless HELIO passes
-  `width`/`height`/`className`, which are forwarded to the `<svg>`.
+- **Size like HELIO's own icons.** The `<svg>` is `1em` square with the font
+  size taken from HELIO's `size`: S = 16 px, M = 24 px, L = 36 px (the same as
+  the SDK's built-in `<Icon>`). Width/height in the data only set the
+  `viewBox`, so a hand-added entry with a 512 `viewBox` is not 512 px big.
+  `width`/`height`/`style`/`className` passed by HELIO still win. There is one
+  drawing for all sizes.
 - `ais-sar-aircraft-helicopter-filled`, `ais-sar-aircraft-helicopter-iec` and
   `kitesurfing` contain `NaN` path data in OpenBridge 2.0.0 itself; browsers
   log an error and skip that segment.
